@@ -48,6 +48,10 @@ scene.add(sun);
 sunLight.position.copy(center.pos);
 
 const bodies = [];
+const trails = new Map();
+let frameCount = 0;
+let fps = 0;
+let fpsTimer = performance.now();
 
 function addBody(type = 'planet') {
   const isMoon = type === 'moon';
@@ -77,6 +81,7 @@ function addBody(type = 'planet') {
 
   scene.add(mesh);
   bodies.push({ type, mass, pos, vel, mesh });
+  trails.set(mesh.uuid, []);
 }
 
 addBody('planet');
@@ -90,12 +95,28 @@ function step(dt) {
     body.vel.addScaledVector(accel, scaledDt);
     body.pos.addScaledVector(body.vel, scaledDt);
     body.mesh.position.copy(body.pos);
+
+    const trail = trails.get(body.mesh.uuid);
+    if (trail) {
+      trail.push(body.pos.clone());
+      if (trail.length > 60) trail.shift();
+      if (!body.trailLine) {
+        body.trailLine = new THREE.Line(
+          new THREE.BufferGeometry(),
+          new THREE.LineBasicMaterial({ color: 0x86aef7, transparent: true, opacity: 0.6 })
+        );
+        scene.add(body.trailLine);
+      }
+      body.trailLine.geometry.setFromPoints(trail);
+    }
   }
 }
 
 function clearDynamicBodies() {
   while (bodies.length > 0) {
     const body = bodies.pop();
+    if (body.trailLine) scene.remove(body.trailLine);
+    trails.delete(body.mesh.uuid);
     scene.remove(body.mesh);
   }
 }
@@ -129,6 +150,8 @@ canvas.addEventListener('click', (event) => {
       const target = intersects[0].object;
       const idx = bodies.findIndex((b) => b.mesh === target);
       if (idx >= 0) {
+        if (bodies[idx].trailLine) scene.remove(bodies[idx].trailLine);
+        trails.delete(bodies[idx].mesh.uuid);
         scene.remove(bodies[idx].mesh);
         bodies.splice(idx, 1);
       }
@@ -172,6 +195,15 @@ function animate(now) {
   sun.rotation.y += dt * 0.12;
 
   renderer.render(scene, camera);
+
+  frameCount += 1;
+  if (now - fpsTimer >= 1000) {
+    fps = frameCount;
+    frameCount = 0;
+    fpsTimer = now;
+    const stats = document.getElementById('stats');
+    if (stats) stats.textContent = `Bodies: ${bodies.length} | FPS: ${fps}`;
+  }
 }
 
 window.addEventListener('resize', () => {
