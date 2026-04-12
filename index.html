@@ -2,43 +2,153 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Universe Simulator - Stage 03</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="theme-color" content="#08142d" />
+  <title>Universe Sandbox</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <canvas id="universe-canvas"></canvas>
 
-  <aside class="panel">
-    <h1>Body Types + Tools</h1>
-    <div class="row">
-      <button id="mode-planet">Planet</button>
-      <button id="mode-star">Star</button>
-      <button id="mode-blackhole">Black Hole</button>
-      <button id="mode-delete">Delete</button>
-    </div>
-    <p class="hint" id="mode-text">Mode: Planet</p>
-    <div class="row">
-      <button id="spawn-planet">Spawn</button>
-      <button id="spawn-moon">Spawn Moon</button>
-      <button id="clear-all">Clear Dynamic</button>
-    </div>
-    <div class="controls">
-      <label>Gravity <input id="gravity-slider" type="range" min="0.2" max="3" step="0.05" value="1" /></label>
-      <label>Time <input id="time-slider" type="range" min="0" max="3" step="0.05" value="1" /></label>
-    </div>
-    <div class="row">
-      <button id="pause-btn">Pause</button>
-      <button id="step-btn">Step</button>
-    </div>
-    <div class="row">
-      <button id="scenario-chaos">Chaos</button>
-      <button id="scenario-binary">Binary</button>
-      <button id="scenario-impact">Impact</button>
-    </div>
-    <p class="hint" id="stats">Bodies: 0 | FPS: 0</p>
-    <p class="hint">Click spawns around center with random offset.</p>
+  <aside class="hud hud-left">
+    <header class="hud-head">
+      <h1>Universe Sandbox</h1>
+      <p class="hud-kicker">Sandbox controls</p>
+    </header>
+
+    <section class="panel-block">
+      <h2>Creation Tools</h2>
+      <p class="section-help">Pick a mode, then drag in space to set initial trajectory.</p>
+      <div class="button-grid-3">
+        <button id="tool-select" class="btn-chip">Select</button>
+        <button id="tool-spawn-planet" class="btn-chip">Planet</button>
+        <button id="tool-spawn-star" class="btn-chip">Star</button>
+        <button id="tool-spawn-blackhole" class="btn-chip btn-chip-wide">Black Hole</button>
+        <button id="tool-delete" class="btn-chip">Delete</button>
+        <button id="tool-grab" class="btn-chip btn-chip-wide">Grab + Throw</button>
+        <button id="tool-laser" class="btn-chip">Laser</button>
+      </div>
+      <p id="tool-mode" class="inline-note">Mode: Select</p>
+    </section>
+
+    <section class="panel-block">
+      <h2>Simulation</h2>
+      <p class="section-help">Control pacing and core forces.</p>
+      <div class="button-row">
+        <button id="btn-pause" class="btn-main">Pause</button>
+        <button id="btn-step" class="btn-main btn-quiet">Step</button>
+      </div>
+      <div class="button-row button-row-tight">
+        <button id="btn-rewind" class="btn-quiet">Rewind</button>
+        <button id="btn-reset" class="btn-quiet">Reset</button>
+      </div>
+      <div class="button-row button-row-loose">
+        <button id="btn-random">New System</button>
+        <button id="btn-supernova" class="btn-danger">Supernova</button>
+      </div>
+
+      <label for="gravity-slider">Gravity Strength</label>
+      <input id="gravity-slider" type="range" min="0.2" max="3" step="0.05" value="1" />
+      <span id="gravity-value">1.00x</span>
+
+      <label for="time-slider">Time Speed</label>
+      <input id="time-slider" type="range" min="0" max="6" step="0.1" value="1" />
+      <span id="time-value">1.0x</span>
+
+      <label for="size-slider">Planet Size Scale</label>
+      <input id="size-slider" type="range" min="0.5" max="2.5" step="0.05" value="1" />
+      <span id="size-value">1.00x</span>
+    </section>
+
+    <section class="panel-block">
+      <h2>Toggles</h2>
+      <p class="section-help">Visual and simulation assists.</p>
+      <label class="toggle"><input id="toggle-collisions" type="checkbox" checked /> Collisions</label>
+      <label class="toggle"><input id="toggle-trails" type="checkbox" checked /> Trails</label>
+      <label class="toggle"><input id="toggle-labels" type="checkbox" /> Labels</label>
+      <label class="toggle"><input id="toggle-nebula" type="checkbox" checked /> Nebula</label>
+    </section>
+
   </aside>
+
+  <aside class="hud hud-right">
+    <header class="hud-head">
+      <h1>Session Panel</h1>
+      <p class="hud-kicker">Scenarios and live stats</p>
+    </header>
+
+    <section class="panel-block">
+      <h2>Scenarios</h2>
+      <p class="section-help">Quick presets for common experiments.</p>
+      <div class="button-row">
+        <button id="scenario-chaos">Chaos Cluster</button>
+        <button id="scenario-binary">Binary Dance</button>
+      </div>
+      <div class="button-row">
+        <button id="scenario-impact">Impact Test</button>
+        <button id="scenario-rings">Ring World</button>
+      </div>
+    </section>
+
+    <section class="panel-block">
+      <h2>Spaceship</h2>
+      <div class="button-row">
+        <button id="spawn-ship" class="btn-main">Spawn Ship</button>
+        <button id="fire-projectile" class="btn-quiet">Fire</button>
+      </div>
+      <p class="inline-note">Controls: W/S thrust, A/D strafe, Q/E yaw, R/F vertical, J fire.</p>
+    </section>
+
+    <section class="panel-block">
+      <h2>Stats</h2>
+      <div class="stat-grid">
+        <div>Bodies: <span id="stat-bodies">0</span></div>
+        <div>Planets: <span id="stat-planets">0</span></div>
+        <div>Moons: <span id="stat-moons">0</span></div>
+        <div>Stars: <span id="stat-stars">0</span></div>
+        <div>Asteroids: <span id="stat-asteroids">0</span></div>
+        <div>Time: <span id="stat-time">0.0y</span></div>
+      </div>
+    </section>
+  </aside>
+
+  <button id="toggle-hud-left" class="tray-handle tray-handle-left" aria-expanded="true" aria-label="Toggle left panel">❮</button>
+  <button id="toggle-hud-right" class="tray-handle tray-handle-right" aria-expanded="true" aria-label="Toggle right panel">❯</button>
+
+  <section id="selection-panel" class="panel selection-panel hidden">
+    <div class="panel-head">
+      <h2 id="info-name">Body</h2>
+      <button id="close-selection" class="close-btn">Close</button>
+    </div>
+    <p id="info-type">Type:</p>
+    <p id="info-mass">Mass:</p>
+    <p id="info-radius">Radius:</p>
+    <p id="info-velocity">Velocity:</p>
+    <p id="info-distance">Distance from center:</p>
+    <p id="info-moons">Moons:</p>
+    <p id="info-temp">Temperature:</p>
+    <hr class="selection-divider" />
+    <h3 class="selection-subtitle">Planet Editor</h3>
+    <label>Mass <input id="edit-mass" type="number" min="1" step="1" /></label>
+    <label>Radius <input id="edit-radius" type="number" min="0.5" step="0.1" /></label>
+    <label>Velocity X <input id="edit-vx" type="number" step="0.1" /></label>
+    <label>Velocity Y <input id="edit-vy" type="number" step="0.1" /></label>
+    <label>Velocity Z <input id="edit-vz" type="number" step="0.1" /></label>
+    <label class="toggle"><input id="edit-ring" type="checkbox" /> Rings</label>
+    <label class="toggle"><input id="edit-atmo" type="checkbox" /> Atmosphere Glow</label>
+    <button id="apply-edit">Apply Changes</button>
+  </section>
+
+  <pre id="runtime-error" class="runtime-error hidden"></pre>
+
+  <div class="rotate-overlay" id="rotate-overlay">
+    <div class="rotate-card">
+      <div class="rotate-title">Universe Sandbox</div>
+      <div class="rotate-text">Rotate to landscape</div>
+      <div class="rotate-subtext">Turn your device sideways to navigate the starfield and controls.</div>
+    </div>
+  </div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="script.js"></script>
