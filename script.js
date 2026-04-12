@@ -181,6 +181,44 @@ document.getElementById('step-btn').addEventListener('click', () => {
   stepOnce = true;
 });
 
+function spawnScenarioChaos() {
+  clearDynamicBodies();
+  for (let i = 0; i < 18; i += 1) addBody(Math.random() > 0.75 ? 'star' : 'planet');
+}
+
+function spawnScenarioBinary() {
+  clearDynamicBodies();
+  addBody('star');
+  addBody('star');
+  for (let i = 0; i < 10; i += 1) addBody('planet');
+}
+
+function spawnScenarioImpact() {
+  clearDynamicBodies();
+  addBody('planet');
+  const target = bodies[0];
+  if (!target) return;
+
+  const attacker = {
+    type: 'planet',
+    mass: 20,
+    pos: new THREE.Vector3(target.pos.x - 180, 0, target.pos.z),
+    vel: new THREE.Vector3(110, 0, 0),
+    mesh: new THREE.Mesh(
+      new THREE.SphereGeometry(7, 24, 24),
+      new THREE.MeshStandardMaterial({ color: 0xff6f7f, roughness: 0.8 })
+    ),
+  };
+  attacker.mesh.position.copy(attacker.pos);
+  scene.add(attacker.mesh);
+  bodies.push(attacker);
+  trails.set(attacker.mesh.uuid, []);
+}
+
+document.getElementById('scenario-chaos').addEventListener('click', spawnScenarioChaos);
+document.getElementById('scenario-binary').addEventListener('click', spawnScenarioBinary);
+document.getElementById('scenario-impact').addEventListener('click', spawnScenarioImpact);
+
 let last = performance.now();
 function animate(now) {
   requestAnimationFrame(animate);
