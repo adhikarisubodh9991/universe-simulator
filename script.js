@@ -1710,6 +1710,13 @@ document.addEventListener('click', () => {
       window.addEventListener('keydown', (e) => {
         if (e.code in this.shipKeys) this.shipKeys[e.code] = true;
         if (e.code === 'KeyJ') this.engine.fireProjectile();
+        if (e.code === 'Digit1') this.setToolMode('select');
+        if (e.code === 'Digit2') this.setToolMode('spawn-planet');
+        if (e.code === 'Digit3') this.setToolMode('spawn-star');
+        if (e.code === 'Digit4') this.setToolMode('spawn-blackhole');
+        if (e.code === 'Digit5') this.setToolMode('delete');
+        if (e.code === 'Digit6') this.setToolMode('grab');
+        if (e.code === 'Digit7') this.setToolMode('laser');
       });
 
       window.addEventListener('keyup', (e) => {
