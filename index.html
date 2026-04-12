@@ -10,11 +10,26 @@
   <canvas id="universe-canvas"></canvas>
 
   <aside class="panel">
-    <h1>Spawn Controls</h1>
+    <h1>Body Types + Tools</h1>
     <div class="row">
-      <button id="spawn-planet">Spawn Planet</button>
+      <button id="mode-planet">Planet</button>
+      <button id="mode-star">Star</button>
+      <button id="mode-blackhole">Black Hole</button>
+      <button id="mode-delete">Delete</button>
+    </div>
+    <p class="hint" id="mode-text">Mode: Planet</p>
+    <div class="row">
+      <button id="spawn-planet">Spawn</button>
       <button id="spawn-moon">Spawn Moon</button>
       <button id="clear-all">Clear Dynamic</button>
+    </div>
+    <div class="controls">
+      <label>Gravity <input id="gravity-slider" type="range" min="0.2" max="3" step="0.05" value="1" /></label>
+      <label>Time <input id="time-slider" type="range" min="0" max="3" step="0.05" value="1" /></label>
+    </div>
+    <div class="row">
+      <button id="pause-btn">Pause</button>
+      <button id="step-btn">Step</button>
     </div>
     <p class="hint">Click spawns around center with random offset.</p>
   </aside>

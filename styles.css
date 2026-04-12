@@ -36,6 +36,21 @@ body {
   gap: 8px;
 }
 
+.controls {
+  margin-top: 10px;
+}
+
+label {
+  display: block;
+  margin-top: 8px;
+  font-size: 12px;
+  color: #c7d7f5;
+}
+
+input[type='range'] {
+  width: 100%;
+}
+
 button {
   padding: 8px 10px;
   border: 0;

@@ -32,7 +32,12 @@ const stars = new THREE.Points(
 );
 scene.add(stars);
 
-const G = 42;
+const BASE_G = 42;
+let gravityScale = 1;
+let timeScale = 1;
+let paused = false;
+let stepOnce = false;
+let mode = 'planet';
 const center = { mass: 12000, pos: new THREE.Vector3(0, 0, 0) };
 
 const sun = new THREE.Mesh(
@@ -46,19 +51,29 @@ const bodies = [];
 
 function addBody(type = 'planet') {
   const isMoon = type === 'moon';
-  const radius = isMoon ? 3.2 : 5.6;
-  const mass = isMoon ? 5 : 12;
+  const isStar = type === 'star';
+  const isBlackHole = type === 'blackhole';
+  const radius = isBlackHole ? 8 : isStar ? 10 : isMoon ? 3.2 : 5.6;
+  const mass = isBlackHole ? 240 : isStar ? 90 : isMoon ? 5 : 12;
   const dist = isMoon ? 110 + Math.random() * 40 : 140 + Math.random() * 80;
   const angle = Math.random() * Math.PI * 2;
 
   const pos = new THREE.Vector3(Math.cos(angle) * dist, 0, Math.sin(angle) * dist);
-  const speed = Math.sqrt((G * center.mass) / Math.max(dist, 1));
+  const speed = Math.sqrt((BASE_G * center.mass) / Math.max(dist, 1));
   const vel = new THREE.Vector3(-Math.sin(angle) * speed, 0, Math.cos(angle) * speed);
 
-  const mesh = new THREE.Mesh(
-    new THREE.SphereGeometry(radius, 24, 24),
-    new THREE.MeshStandardMaterial({ color: isMoon ? 0xb8c4d9 : 0x7fa8ff, roughness: 0.85 })
-  );
+  const color = isBlackHole ? 0x221133 : isStar ? 0xffb46c : isMoon ? 0xb8c4d9 : 0x7fa8ff;
+  const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.85 });
+  if (isStar) {
+    mat.emissive = new THREE.Color(0xff8a3f);
+    mat.emissiveIntensity = 0.55;
+  }
+  if (isBlackHole) {
+    mat.emissive = new THREE.Color(0x5a2a87);
+    mat.emissiveIntensity = 0.5;
+  }
+
+  const mesh = new THREE.Mesh(new THREE.SphereGeometry(radius, 24, 24), mat);
 
   scene.add(mesh);
   bodies.push({ type, mass, pos, vel, mesh });
@@ -67,12 +82,13 @@ function addBody(type = 'planet') {
 addBody('planet');
 
 function step(dt) {
+  const scaledDt = dt * timeScale;
   for (const body of bodies) {
     const toCenter = new THREE.Vector3().subVectors(center.pos, body.pos);
     const d2 = Math.max(toCenter.lengthSq(), 70);
-    const accel = toCenter.normalize().multiplyScalar((G * center.mass) / d2);
-    body.vel.addScaledVector(accel, dt);
-    body.pos.addScaledVector(body.vel, dt);
+    const accel = toCenter.normalize().multiplyScalar((BASE_G * gravityScale * center.mass) / d2);
+    body.vel.addScaledVector(accel, scaledDt);
+    body.pos.addScaledVector(body.vel, scaledDt);
     body.mesh.position.copy(body.pos);
   }
 }
@@ -84,11 +100,62 @@ function clearDynamicBodies() {
   }
 }
 
-document.getElementById('spawn-planet').addEventListener('click', () => addBody('planet'));
 document.getElementById('spawn-moon').addEventListener('click', () => addBody('moon'));
 document.getElementById('clear-all').addEventListener('click', () => {
   clearDynamicBodies();
   addBody('planet');
+});
+
+function setMode(next) {
+  mode = next;
+  document.getElementById('mode-text').textContent = `Mode: ${next.charAt(0).toUpperCase()}${next.slice(1)}`;
+}
+
+document.getElementById('mode-planet').addEventListener('click', () => setMode('planet'));
+document.getElementById('mode-star').addEventListener('click', () => setMode('star'));
+document.getElementById('mode-blackhole').addEventListener('click', () => setMode('blackhole'));
+document.getElementById('mode-delete').addEventListener('click', () => setMode('delete'));
+
+canvas.addEventListener('click', (event) => {
+  if (mode === 'delete') {
+    const mouse = new THREE.Vector2(
+      (event.clientX / window.innerWidth) * 2 - 1,
+      -(event.clientY / window.innerHeight) * 2 + 1
+    );
+    const raycaster = new THREE.Raycaster();
+    raycaster.setFromCamera(mouse, camera);
+    const intersects = raycaster.intersectObjects(bodies.map((b) => b.mesh));
+    if (intersects.length > 0) {
+      const target = intersects[0].object;
+      const idx = bodies.findIndex((b) => b.mesh === target);
+      if (idx >= 0) {
+        scene.remove(bodies[idx].mesh);
+        bodies.splice(idx, 1);
+      }
+    }
+    return;
+  }
+
+  addBody(mode);
+});
+
+document.getElementById('spawn-planet').addEventListener('click', () => addBody(mode));
+
+document.getElementById('gravity-slider').addEventListener('input', (e) => {
+  gravityScale = parseFloat(e.target.value);
+});
+
+document.getElementById('time-slider').addEventListener('input', (e) => {
+  timeScale = parseFloat(e.target.value);
+});
+
+document.getElementById('pause-btn').addEventListener('click', () => {
+  paused = !paused;
+  document.getElementById('pause-btn').textContent = paused ? 'Resume' : 'Pause';
+});
+
+document.getElementById('step-btn').addEventListener('click', () => {
+  stepOnce = true;
 });
 
 let last = performance.now();
@@ -97,7 +164,10 @@ function animate(now) {
   const dt = Math.min((now - last) / 1000, 0.03);
   last = now;
 
-  step(dt);
+  if (!paused || stepOnce) {
+    step(dt);
+    stepOnce = false;
+  }
   stars.rotation.y += dt * 0.0025;
   sun.rotation.y += dt * 0.12;
 
