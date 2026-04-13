@@ -381,6 +381,10 @@ input[type='range'] {
   display: none;
 }
 
+.rotate-overlay.hidden {
+  display: none !important;
+}
+
 .rotate-card {
   width: min(92vw, 420px);
   padding: 22px 20px;
