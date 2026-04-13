@@ -1410,6 +1410,7 @@ document.addEventListener('click', () => {
       this.shipKeys = {
         KeyW: false, KeyS: false, KeyA: false, KeyD: false,
         KeyQ: false, KeyE: false, KeyR: false, KeyF: false,
+        ShiftLeft: false, KeyX: false,
       };
 
       this.els = this.collectEls();
@@ -1825,7 +1826,8 @@ document.addEventListener('click', () => {
     }
 
     shipController(ship, dt) {
-      const thrust = 34;
+      const boostMultiplier = this.shipKeys.ShiftLeft ? 2.1 : 1;
+      const thrust = 34 * boostMultiplier;
       const yawSpeed = 2.4;
 
       if (ship.mesh) {
@@ -1862,6 +1864,13 @@ document.addEventListener('click', () => {
       }
       if (this.shipKeys.KeyR) ship.vy += thrust * 0.8 * dt;
       if (this.shipKeys.KeyF) ship.vy -= thrust * 0.8 * dt;
+
+      if (this.shipKeys.KeyX) {
+        const damping = Math.max(0, 1 - 3.2 * dt);
+        ship.vx *= damping;
+        ship.vy *= damping;
+        ship.vz *= damping;
+      }
     }
 
     bindResize() {
