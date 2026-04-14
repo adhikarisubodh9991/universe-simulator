@@ -704,6 +704,52 @@ class UniverseEngine {
     return this.gravityScale;
   }
 
+  getSpeedLimitFor(body) {
+    if (!body) return 420;
+    if (body.type === BODY_TYPES.PROJECTILE) return 560;
+    if (body.type === BODY_TYPES.COMET) return 420;
+    if (body.type === BODY_TYPES.ASTEROID || body.type === BODY_TYPES.FRAGMENT) return 360;
+    if (body.type === BODY_TYPES.SHIP) return 300;
+    if (body.type === BODY_TYPES.BLACKHOLE) return 140;
+    return 260;
+  }
+
+  sanitizeBodyState(body) {
+    if (!body || !body.alive) return;
+
+    if (!Number.isFinite(body.mass) || body.mass <= 0) body.mass = 1;
+    if (!Number.isFinite(body.radius) || body.radius <= 0) body.radius = 0.5;
+
+    body.mass = Math.min(2_000_000_000, Math.max(1, body.mass));
+    body.radius = Math.min(1200, Math.max(0.4, body.radius));
+
+    if (!Number.isFinite(body.x)) body.x = 0;
+    if (!Number.isFinite(body.y)) body.y = 0;
+    if (!Number.isFinite(body.z)) body.z = 0;
+    if (!Number.isFinite(body.vx)) body.vx = 0;
+    if (!Number.isFinite(body.vy)) body.vy = 0;
+    if (!Number.isFinite(body.vz)) body.vz = 0;
+
+    const speedSq = body.vx * body.vx + body.vy * body.vy + body.vz * body.vz;
+    if (Number.isFinite(speedSq) && speedSq > 0) {
+      const limit = this.getSpeedLimitFor(body);
+      const limitSq = limit * limit;
+      if (speedSq > limitSq) {
+        const scale = limit / Math.sqrt(speedSq);
+        body.vx *= scale;
+        body.vy *= scale;
+        body.vz *= scale;
+      }
+    }
+  }
+
+  runStabilityPass() {
+    for (const b of this.bodies) {
+      if (!b.alive) continue;
+      this.sanitizeBodyState(b);
+    }
+  }
+
   applyNBody(dt) {
     const arr = this.bodies;
     for (let i = 0; i < arr.length; i++) {
@@ -1095,17 +1141,28 @@ class UniverseEngine {
   tick(dt, shipControl) {
     if (this.paused && !this.stepOnce) return;
 
-    const step = Math.min(dt * this.timeScale, 0.05);
+    const safeDt = Number.isFinite(dt) && dt > 0 ? dt : 0;
+    if (safeDt <= 0) {
+      this.stepOnce = false;
+      return;
+    }
+
+    const step = Math.max(0.0002, Math.min(safeDt * this.timeScale, 0.05));
     this.simYears += (step * 40) / 365;
 
+    this.runStabilityPass();
+
     this.applyNBody(step);
+    this.runStabilityPass();
     this.applyDecayAndInstability(step);
 
     if (this.ship && this.ship.alive && shipControl) {
       shipControl(this.ship, step);
+      this.sanitizeBodyState(this.ship);
     }
 
     this.integrate(step);
+    this.runStabilityPass();
     this.handleCollisions();
     this.maybeRandomSupernova(step);
     this.updateVisuals();
