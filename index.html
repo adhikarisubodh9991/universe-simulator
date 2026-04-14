@@ -46,7 +46,7 @@
       </div>
       <div class="button-row button-row-loose">
         <button id="btn-random">New System</button>
-        <button id="btn-supernova" class="btn-danger">Supernova</button>
+        <button id="btn-supernova">Supernova</button>
       </div>
 
       <label for="gravity-slider">Gravity Strength</label>
@@ -142,6 +142,10 @@
     <label>Velocity Z <input id="edit-vz" type="number" step="0.1" /></label>
     <label class="toggle"><input id="edit-ring" type="checkbox" /> Rings</label>
     <label class="toggle"><input id="edit-atmo" type="checkbox" /> Atmosphere Glow</label>
+    <div class="button-row button-row-tight">
+      <button id="zero-velocity" class="btn-quiet">Zero Velocity</button>
+      <button id="clone-body" class="btn-quiet">Clone Body</button>
+    </div>
     <button id="apply-edit">Apply Changes</button>
   </section>
 
@@ -156,8 +160,14 @@
   </div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-  <script src="script.js"></script>
-</body>
+  <script src="js/runtime_mobile.js"></script>
+  <script src="js/core_constants_utils.js"></script>
+  <script src="js/camera_controller.js"></script>
+  <script src="js/universe_engine.js"></script>
+  <script src="js/universe_app.js"></script>
+  <script src="js/bootstrap.js"></script>
+
+  </body>
 </html>
 
 
