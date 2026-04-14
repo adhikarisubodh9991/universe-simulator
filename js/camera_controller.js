@@ -13,10 +13,14 @@ class CameraController {
       maxDistance: 5200,
       azimuth: 0,
       polar: 1.12,
+      rotateSpeed: 0.0042,
+      panSpeed: 0.00125,
+      zoomSpeed: 0.28,
       dragLeft: false,
       dragRight: false,
       lastX: 0,
       lastY: 0,
+      lastInteractionAt: 0,
     };
 
     this.bind();
@@ -47,26 +51,29 @@ class CameraController {
       this.state.lastY = e.clientY;
 
       if (this.state.dragLeft) {
-        this.state.azimuth -= dx * 0.005;
-        this.state.polar -= dy * 0.004;
+        this.state.azimuth -= dx * this.state.rotateSpeed;
+        this.state.polar -= dy * (this.state.rotateSpeed * 0.85);
         this.state.polar = Math.max(0.08, Math.min(Math.PI - 0.08, this.state.polar));
+        this.state.lastInteractionAt = performance.now();
         this.update();
       }
 
       if (this.state.dragRight) {
         this.camera.getWorldDirection(this.forward).normalize();
         this.right.crossVectors(this.forward, this.up).normalize();
-        const pan = Math.max(0.08, this.state.distance * 0.0015);
+        const pan = Math.max(0.08, this.state.distance * this.state.panSpeed);
         this.target.addScaledVector(this.right, -dx * pan);
         this.target.y += dy * pan;
+        this.state.lastInteractionAt = performance.now();
         this.update();
       }
     });
 
     el.addEventListener('wheel', (e) => {
       e.preventDefault();
-      this.state.distance += e.deltaY * 0.35;
+      this.state.distance += e.deltaY * this.state.zoomSpeed;
       this.state.distance = Math.max(this.state.minDistance, Math.min(this.state.maxDistance, this.state.distance));
+      this.state.lastInteractionAt = performance.now();
       this.update();
     }, { passive: false });
 
@@ -95,9 +102,10 @@ class CameraController {
         const dy = y - this.state.lastY;
         this.state.lastX = x;
         this.state.lastY = y;
-        this.state.azimuth -= dx * 0.005;
-        this.state.polar -= dy * 0.004;
+        this.state.azimuth -= dx * this.state.rotateSpeed;
+        this.state.polar -= dy * (this.state.rotateSpeed * 0.85);
         this.state.polar = Math.max(0.08, Math.min(Math.PI - 0.08, this.state.polar));
+        this.state.lastInteractionAt = performance.now();
         this.update();
       } else if (e.touches.length === 2) {
         const cx = (e.touches[0].clientX + e.touches[1].clientX) / 2;
@@ -109,7 +117,7 @@ class CameraController {
 
         this.camera.getWorldDirection(this.forward).normalize();
         this.right.crossVectors(this.forward, this.up).normalize();
-        const pan = Math.max(0.08, this.state.distance * 0.0015);
+        const pan = Math.max(0.08, this.state.distance * this.state.panSpeed);
         this.target.addScaledVector(this.right, -dx * pan);
         this.target.y += dy * pan;
 
@@ -117,10 +125,11 @@ class CameraController {
         const pdy = e.touches[0].clientY - e.touches[1].clientY;
         const pinchDist = Math.sqrt(pdx * pdx + pdy * pdy);
         if (this.state.lastPinchDist) {
-          this.state.distance -= (pinchDist - this.state.lastPinchDist) * 0.8;
+          this.state.distance -= (pinchDist - this.state.lastPinchDist) * 0.72;
           this.state.distance = Math.max(this.state.minDistance, Math.min(this.state.maxDistance, this.state.distance));
         }
         this.state.lastPinchDist = pinchDist;
+        this.state.lastInteractionAt = performance.now();
         this.update();
       }
     }, { passive: true });
@@ -147,7 +156,22 @@ class CameraController {
     this.state.distance = 520;
     this.state.azimuth = 0;
     this.state.polar = 1.12;
+    this.state.lastInteractionAt = performance.now();
     this.update();
+  }
+
+  frameTarget(point, distance = null) {
+    if (!point) return;
+    this.target.copy(point);
+    if (distance != null && Number.isFinite(distance)) {
+      this.state.distance = Math.max(this.state.minDistance, Math.min(this.state.maxDistance, distance));
+    }
+    this.state.lastInteractionAt = performance.now();
+    this.update();
+  }
+
+  wasInteractingRecently(ms = 120) {
+    return performance.now() - this.state.lastInteractionAt <= ms;
   }
 }
 

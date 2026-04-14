@@ -297,6 +297,10 @@ class UniverseApp {
     this.canvas.addEventListener('pointerup', (e) => {
       const moved = Math.hypot(e.clientX - this.pointerDown.x, e.clientY - this.pointerDown.y);
 
+      if (this.cam.wasInteractingRecently(90) && moved > 2) {
+        return;
+      }
+
       if (this.grabbedBody) {
         this.grabbedBody.vx += this.lastGrabVelocity.x;
         this.grabbedBody.vy += this.lastGrabVelocity.y;
@@ -351,6 +355,12 @@ class UniverseApp {
       if (e.code === 'Digit5') this.setToolMode('delete');
       if (e.code === 'Digit6') this.setToolMode('grab');
       if (e.code === 'Digit7') this.setToolMode('laser');
+      if (e.code === 'KeyC') this.cam.reset();
+      if (e.code === 'KeyV' && this.engine.selectedBody && this.engine.selectedBody.alive) {
+        const b = this.engine.selectedBody;
+        const desiredDistance = Math.max(60, Math.min(1400, b.radius * 34));
+        this.cam.frameTarget(new THREE.Vector3(b.x, b.y, b.z), desiredDistance);
+      }
     });
 
     window.addEventListener('keyup', (e) => {
