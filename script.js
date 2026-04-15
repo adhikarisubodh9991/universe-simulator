@@ -41,37 +41,40 @@ function lockLandscapeOrientation() {
   }
 }
 
+function isLandscapeViewport() {
+  return window.innerWidth >= window.innerHeight;
+}
+
 async function goFullscreen() {
-  if (isFileProtocol()) return;
-  const elem = document.documentElement;
-  try {
-    if (elem.requestFullscreen) await elem.requestFullscreen({ navigationUI: 'hide' });
-    else if (elem.webkitRequestFullscreen) await elem.webkitRequestFullscreen();
-    else if (elem.msRequestFullscreen) await elem.msRequestFullscreen();
-  } catch (_) {
-    // Ignore unsupported fullscreen APIs.
-  }
+if (isFileProtocol()) return;
+const elem = document.documentElement;
+try {
+  if (elem.requestFullscreen) await elem.requestFullscreen({ navigationUI: 'hide' });
+  else if (elem.webkitRequestFullscreen) await elem.webkitRequestFullscreen();
+  else if (elem.msRequestFullscreen) await elem.msRequestFullscreen();
+} catch (_) {
+  // Ignore unsupported fullscreen APIs and permission failures.
+}
+}
+
+function requestMobileFullscreenIfReady() {
+if (!isMobileDevice() || !isLandscapeViewport() || isFileProtocol()) return;
+const activeFullscreen = document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement;
+if (activeFullscreen) return;
+goFullscreen();
 }
 
 window.addEventListener('load', () => {
-  if (!isMobileDevice()) return;
-  lockLandscapeOrientation();
-  updateRotateOverlayVisibility();
-  if (!isFileProtocol()) {
-    setTimeout(goFullscreen, 500);
-  }
+if (!isMobileDevice()) return;
+lockLandscapeOrientation();
+updateRotateOverlayVisibility();
 });
 
 window.addEventListener('resize', updateRotateOverlayVisibility);
 window.addEventListener('orientationchange', updateRotateOverlayVisibility);
-
-document.addEventListener('touchstart', () => {
-  if (isMobileDevice() && !isFileProtocol()) goFullscreen();
-}, { once: true });
-
-document.addEventListener('click', () => {
-  if (isMobileDevice() && !isFileProtocol()) goFullscreen();
-}, { once: true });
+document.addEventListener('pointerdown', requestMobileFullscreenIfReady, { passive: true });
+document.addEventListener('touchstart', requestMobileFullscreenIfReady, { passive: true });
+document.addEventListener('click', requestMobileFullscreenIfReady, { passive: true });
 
 (() => {
 const BODY_TYPES = {
@@ -82,8 +85,6 @@ const BODY_TYPES = {
   COMET: 'comet',
   BLACKHOLE: 'blackhole',
   FRAGMENT: 'fragment',
-  SHIP: 'ship',
-  PROJECTILE: 'projectile',
 };
 
 const STAR_TYPES = [
@@ -287,8 +288,6 @@ class UniverseEngine {
     this.simYears = 0;
 
     this.selectedBody = null;
-    this.ship = null;
-    this.projectilesToRemove = [];
 
     this.starfield = null;
     this.nebula = null;
@@ -377,6 +376,8 @@ class UniverseEngine {
       glow: null,
       ring: null,
       atmosphereMesh: null,
+      blackHoleDisk: null,
+      blackHoleHalo: null,
       trail: [],
       trailLine: null,
       label: null,
@@ -407,14 +408,17 @@ class UniverseEngine {
     }
 
     if (body.type === BODY_TYPES.BLACKHOLE) {
-      mat.color.setHex(0x090909);
-      mat.emissive.setHex(0x2b0a58);
-      mat.emissiveIntensity = 0.5;
+      mat.color.setHex(0x050506);
+      mat.emissive.setHex(0x000000);
+      mat.emissiveIntensity = 0;
+      mat.roughness = 0.95;
+      mat.metalness = 0;
     }
 
     const mesh = new THREE.Mesh(geo, mat);
     mesh.position.set(body.x, body.y, body.z);
     mesh.userData.bodyId = body.id;
+    mesh.userData.baseRadius = Math.max(0.6, body.radius);
     this.scene.add(mesh);
     body.mesh = mesh;
 
@@ -433,7 +437,11 @@ class UniverseEngine {
       this.enableAtmosphere(body, true);
     }
 
-    if (body.type !== BODY_TYPES.ASTEROID && body.type !== BODY_TYPES.FRAGMENT && body.type !== BODY_TYPES.PROJECTILE) {
+    if (body.type === BODY_TYPES.BLACKHOLE) {
+      this.enableBlackHoleVisuals(body, true);
+    }
+
+    if (body.type !== BODY_TYPES.ASTEROID && body.type !== BODY_TYPES.FRAGMENT) {
       const line = new THREE.Line(
         new THREE.BufferGeometry(),
         new THREE.LineBasicMaterial({ color: 0x72a7ff, transparent: true, opacity: 0.45 })
@@ -467,6 +475,7 @@ class UniverseEngine {
     const ring = new THREE.Mesh(rg, rm);
     ring.rotation.x = -Math.PI / 2.2;
     ring.position.copy(body.mesh.position);
+    ring.userData.baseRadius = Math.max(0.1, body.radius);
     this.scene.add(ring);
     body.ring = ring;
   }
@@ -494,8 +503,85 @@ class UniverseEngine {
     });
     const at = new THREE.Mesh(ag, am);
     at.position.copy(body.mesh.position);
+    at.userData.baseRadius = Math.max(0.1, body.radius);
     this.scene.add(at);
     body.atmosphereMesh = at;
+  }
+
+  enableBlackHoleVisuals(body, enabled) {
+    if (!body.mesh) return;
+    if (!enabled) {
+      if (body.blackHoleDisk) {
+        this.scene.remove(body.blackHoleDisk);
+        body.blackHoleDisk.geometry.dispose();
+        body.blackHoleDisk.material.dispose();
+        body.blackHoleDisk = null;
+      }
+      if (body.blackHoleHalo) {
+        this.scene.remove(body.blackHoleHalo);
+        body.blackHoleHalo.geometry.dispose();
+        body.blackHoleHalo.material.dispose();
+        body.blackHoleHalo = null;
+      }
+      return;
+    }
+
+    if (body.blackHoleDisk || body.blackHoleHalo) return;
+
+    const diskGeo = new THREE.RingGeometry(body.radius * 1.45, body.radius * 2.45, 96);
+    const diskMat = new THREE.MeshBasicMaterial({
+      color: 0xffb26d,
+      transparent: true,
+      opacity: 0.62,
+      side: THREE.DoubleSide,
+      blending: THREE.AdditiveBlending,
+    });
+    const disk = new THREE.Mesh(diskGeo, diskMat);
+    disk.rotation.x = -Math.PI / 2.1;
+    disk.position.copy(body.mesh.position);
+    disk.userData.baseRadius = Math.max(0.1, body.radius);
+    this.scene.add(disk);
+    body.blackHoleDisk = disk;
+
+    const haloGeo = new THREE.RingGeometry(body.radius * 2.5, body.radius * 3.6, 96);
+    const haloMat = new THREE.MeshBasicMaterial({
+      color: 0xffd8a1,
+      transparent: true,
+      opacity: 0.26,
+      side: THREE.DoubleSide,
+      blending: THREE.AdditiveBlending,
+    });
+    const halo = new THREE.Mesh(haloGeo, haloMat);
+    halo.position.copy(body.mesh.position);
+    halo.lookAt(this.scene.position);
+    halo.userData.baseRadius = Math.max(0.1, body.radius);
+    this.scene.add(halo);
+    body.blackHoleHalo = halo;
+  }
+
+  updateBodyScale(body) {
+    if (!body.mesh) return;
+
+    const baseMeshRadius = Math.max(0.1, body.mesh.userData.baseRadius || body.mesh.geometry?.parameters?.radius || 1);
+    const meshScale = Math.max(0.2, body.radius / baseMeshRadius);
+    body.mesh.scale.setScalar(meshScale);
+
+    if (body.ring && body.ring.userData.baseRadius) {
+      body.ring.scale.setScalar(Math.max(0.2, body.radius / body.ring.userData.baseRadius));
+    }
+    if (body.atmosphereMesh && body.atmosphereMesh.userData.baseRadius) {
+      body.atmosphereMesh.scale.setScalar(Math.max(0.2, body.radius / body.atmosphereMesh.userData.baseRadius));
+    }
+    if (body.blackHoleDisk && body.blackHoleDisk.userData.baseRadius) {
+      body.blackHoleDisk.scale.setScalar(Math.max(0.2, body.radius / body.blackHoleDisk.userData.baseRadius));
+    }
+    if (body.blackHoleHalo && body.blackHoleHalo.userData.baseRadius) {
+      body.blackHoleHalo.scale.setScalar(Math.max(0.2, body.radius / body.blackHoleHalo.userData.baseRadius));
+    }
+
+    if (body.type === BODY_TYPES.STAR && body.glow) {
+      body.glow.intensity = Math.max(1.1, 0.85 + body.radius * 0.08);
+    }
   }
 
   removeBody(body) {
@@ -518,6 +604,16 @@ class UniverseEngine {
       body.atmosphereMesh.geometry.dispose();
       body.atmosphereMesh.material.dispose();
     }
+    if (body.blackHoleDisk) {
+      this.scene.remove(body.blackHoleDisk);
+      body.blackHoleDisk.geometry.dispose();
+      body.blackHoleDisk.material.dispose();
+    }
+    if (body.blackHoleHalo) {
+      this.scene.remove(body.blackHoleHalo);
+      body.blackHoleHalo.geometry.dispose();
+      body.blackHoleHalo.material.dispose();
+    }
     if (body.trailLine) {
       this.scene.remove(body.trailLine);
       body.trailLine.geometry.dispose();
@@ -525,7 +621,6 @@ class UniverseEngine {
     }
 
     if (this.selectedBody === body) this.selectedBody = null;
-    if (this.ship === body) this.ship = null;
   }
 
   clearAll() {
@@ -533,7 +628,6 @@ class UniverseEngine {
     this.bodies = [];
     this.idToBody.clear();
     this.selectedBody = null;
-    this.ship = null;
     this.simYears = 0;
     this.snapshotBuffer = [];
     this.clearEffects();
@@ -761,8 +855,8 @@ class UniverseEngine {
       type: BODY_TYPES.BLACKHOLE,
       subtype: 'Singularity',
       name: `Black Hole ${this.nextId}`,
-      mass: rand(300000, 700000),
-      radius: rand(4, 8),
+      mass: rand(520000, 1200000),
+      radius: rand(6, 10),
       color: 0x070707,
       atmosphere: 'accretion disk',
       temperature: rand(1000000, 5000000),
@@ -772,45 +866,242 @@ class UniverseEngine {
     });
   }
 
-  spawnShip(x = 0, y = 20, z = 0) {
-    if (this.ship && this.ship.alive) return this.ship;
-    const ship = this.createBody({
-      type: BODY_TYPES.SHIP,
-      subtype: 'Player Ship',
-      name: 'Ship',
-      mass: 120,
-      radius: 1.8,
-      color: 0x9ff2ff,
-      atmosphere: 'none',
-      temperature: 300,
+  triggerMeteorStorm(count = 34) {
+    const selected = this.selectedBody && this.selectedBody.alive ? this.selectedBody : null;
+    const anchor = selected || this.bodies.find((b) => b.alive && b.type === BODY_TYPES.STAR) || { x: 0, y: 0, z: 0 };
+
+    for (let i = 0; i < count; i++) {
+      const angle = rand(0, Math.PI * 2);
+      const distance = rand(260, 620);
+      const height = rand(-120, 120);
+      const x = anchor.x + Math.cos(angle) * distance;
+      const y = anchor.y + height;
+      const z = anchor.z + Math.sin(angle) * distance;
+
+      const drift = new THREE.Vector3(rand(-0.32, 0.32), rand(-0.14, 0.14), rand(-0.32, 0.32));
+      const dir = new THREE.Vector3(anchor.x - x, anchor.y - y, anchor.z - z).normalize().add(drift).normalize();
+
+      const comet = Math.random() < 0.48;
+      const radius = comet ? rand(1.2, 2.8) : rand(0.45, 1.45);
+      const mass = radius * radius * radius * (comet ? rand(2.3, 5.5) : rand(0.9, 3.1));
+      const speed = comet ? rand(68, 120) : rand(48, 96);
+
+      this.createBody({
+        type: comet ? BODY_TYPES.COMET : BODY_TYPES.ASTEROID,
+        subtype: comet ? 'Storm Comet' : 'Storm Rock',
+        name: comet ? `Storm Comet ${this.nextId}` : `Storm Rock ${this.nextId}`,
+        mass,
+        radius,
+        color: comet ? 0xbfe8ff : 0x9aa0ad,
+        atmosphere: comet ? 'ion tail' : 'none',
+        temperature: comet ? rand(50, 240) : rand(120, 500),
+        x,
+        y,
+        z,
+        vx: dir.x * speed,
+        vy: dir.y * speed,
+        vz: dir.z * speed,
+        unstable: true,
+      });
+
+      if (Math.random() < 0.22) {
+        this.createExplosionFX(x, y, z, comet ? 0xbde9ff : 0xffb88c, 0.35);
+      }
+    }
+
+    this.createExplosionFX(anchor.x, anchor.y, anchor.z, 0x9dd5ff, 1.0);
+    this.spawnShockwave(anchor.x, anchor.y, anchor.z, {
+      color: 0x8ec8ff,
+      opacity: 0.56,
+      inner: 0.9,
+      outer: 2.2,
+      speed: 64,
+      life: 1.1,
+    });
+    this.spawnShockwave(anchor.x, anchor.y, anchor.z, {
+      color: 0xc8ecff,
+      opacity: 0.42,
+      inner: 1.3,
+      outer: 2.8,
+      speed: 82,
+      life: 0.9,
+      tilt: true,
+    });
+    this.updateStats();
+  }
+
+  triggerGravityPulse(sourceBody = null) {
+    const source = (sourceBody && sourceBody.alive)
+      ? sourceBody
+      : (this.selectedBody && this.selectedBody.alive ? this.selectedBody : null);
+
+    const cx = source ? source.x : 0;
+    const cy = source ? source.y : 0;
+    const cz = source ? source.z : 0;
+    const pulseRadius = source ? Math.max(420, source.radius * 52) : 980;
+    const impulseBase = source ? Math.min(180, 56 + source.radius * 2.2) : 58;
+
+    for (const body of this.bodies) {
+      if (!body.alive) continue;
+      if (source && body.id === source.id) continue;
+      if (body.type === BODY_TYPES.BLACKHOLE) continue;
+
+      const dx = body.x - cx;
+      const dy = body.y - cy;
+      const dz = body.z - cz;
+      const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+      if (dist < 0.001 || dist > pulseRadius) continue;
+
+      const falloff = 1 - (dist / pulseRadius);
+      const massResistance = 1 + Math.cbrt(Math.max(1, body.mass)) * 0.13;
+const impulse = Math.max(0, (impulseBase * falloff) / massResistance);
+
+      const nx = dx / dist;
+      const ny = dy / dist;
+      const nz = dz / dist;
+      const tangent = new THREE.Vector3(-nz, 0, nx);
+      if (tangent.lengthSq() > 0.00001) tangent.normalize();
+
+      body.vx += nx * impulse + tangent.x * impulse * 0.3;
+      body.vy += ny * impulse;
+      body.vz += nz * impulse + tangent.z * impulse * 0.3;
+    }
+
+    this.createExplosionFX(cx, cy, cz, 0xb4d7ff, 1.25);
+    this.spawnShockwave(cx, cy, cz, {
+      color: 0xd8efff,
+      opacity: 0.62,
+      inner: 0.8,
+      outer: 2,
+      speed: 96,
+      life: 1.2,
+    });
+    this.spawnShockwave(cx, cy, cz, {
+      color: 0x9ac9ff,
+      opacity: 0.48,
+      inner: 1.2,
+      outer: 3.1,
+      speed: 120,
+      life: 1,
+    });
+    this.spawnShockwave(cx, cy, cz, {
+      color: 0xffffff,
+      opacity: 0.22,
+      inner: 1.6,
+      outer: 3.9,
+      speed: 146,
+      life: 0.85,
+    });
+    this.updateStats();
+  }
+
+  triggerSolarFlare() {
+    let star = this.selectedBody && this.selectedBody.alive && this.selectedBody.type === BODY_TYPES.STAR
+      ? this.selectedBody
+      : this.bodies.find((b) => b.alive && b.type === BODY_TYPES.STAR);
+
+    if (!star) {
+      star = this.createStar(0, 0, STAR_TYPES[0]);
+    }
+
+    const flareRadius = Math.max(280, star.radius * 18);
+    for (const body of this.bodies) {
+      if (!body.alive || body.id === star.id) continue;
+      if (body.type === BODY_TYPES.BLACKHOLE) continue;
+
+      const dx = body.x - star.x;
+      const dy = body.y - star.y;
+      const dz = body.z - star.z;
+      const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+      if (dist < 0.001 || dist > flareRadius) continue;
+
+      const falloff = 1 - (dist / flareRadius);
+      const impulse = (72 * falloff) / (1 + Math.cbrt(Math.max(1, body.mass)) * 0.12);
+      const nx = dx / dist;
+      const ny = dy / dist;
+      const nz = dz / dist;
+
+      body.vx += nx * impulse;
+      body.vy += ny * impulse;
+      body.vz += nz * impulse;
+      body.temperature = Math.min(50000, (body.temperature || 0) + 2400 * falloff);
+
+      if (body.type === BODY_TYPES.ASTEROID || body.type === BODY_TYPES.COMET || body.type === BODY_TYPES.FRAGMENT) {
+        body.unstable = true;
+        if (Math.random() < 0.09 * falloff) {
+          this.createExplosionFX(body.x, body.y, body.z, 0xffbf83, 0.34);
+        }
+      }
+    }
+
+    this.createExplosionFX(star.x, star.y, star.z, 0xffc482, 1.6);
+    this.spawnShockwave(star.x, star.y, star.z, {
+      color: 0xffdd9a,
+      opacity: 0.58,
+      inner: 0.9,
+      outer: 2.4,
+      speed: 86,
+      life: 1.1,
+    });
+    this.spawnShockwave(star.x, star.y, star.z, {
+      color: 0xffa76b,
+      opacity: 0.36,
+      inner: 1.4,
+      outer: 3.4,
+      speed: 108,
+      life: 0.95,
+      tilt: true,
+    });
+    this.updateStats();
+  }
+
+  triggerRogueInfall() {
+    const target = this.selectedBody && this.selectedBody.alive
+      ? this.selectedBody
+      : { x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0 };
+
+    const angle = rand(0, Math.PI * 2);
+    const distance = rand(780, 1280);
+    const x = target.x + Math.cos(angle) * distance;
+    const y = target.y + rand(-140, 140);
+    const z = target.z + Math.sin(angle) * distance;
+
+    const toTarget = new THREE.Vector3(target.x - x, target.y - y, target.z - z).normalize();
+    const tangent = new THREE.Vector3(-toTarget.z, 0, toTarget.x).normalize().multiplyScalar(rand(-0.22, 0.22));
+    const dir = toTarget.add(tangent).normalize();
+
+    const radius = Math.max(3.5, rand(3.5, 7.8) * this.sizeScale);
+    const mass = radius * radius * radius * rand(10, 18);
+    const speed = rand(46, 78);
+
+    this.createBody({
+      type: BODY_TYPES.PLANET,
+      subtype: 'Rogue',
+      name: `Rogue ${this.nextId}`,
+      mass,
+      radius,
+      color: randInt(0x728fb2, 0xc8ae8a),
+      atmosphere: Math.random() < 0.5 ? 'thin' : 'none',
+      temperature: rand(40, 400),
       x,
       y,
       z,
+      vx: (target.vx || 0) + dir.x * speed,
+      vy: (target.vy || 0) + dir.y * speed,
+      vz: (target.vz || 0) + dir.z * speed,
+      unstable: true,
     });
-    this.ship = ship;
-    return ship;
-  }
 
-  fireProjectile() {
-    if (!this.ship || !this.ship.alive) return;
-    const dir = new THREE.Vector3(0, 0, -1);
-    dir.applyQuaternion(this.ship.mesh.quaternion);
-    const speed = 120;
-    const proj = this.createBody({
-      type: BODY_TYPES.PROJECTILE,
-      subtype: 'Projectile',
-      name: `Projectile ${this.nextId}`,
-      mass: 1,
-      radius: 0.55,
-      color: 0xffd27f,
-      x: this.ship.x + dir.x * (this.ship.radius + 1.5),
-      y: this.ship.y + dir.y * (this.ship.radius + 1.5),
-      z: this.ship.z + dir.z * (this.ship.radius + 1.5),
-      vx: this.ship.vx + dir.x * speed,
-      vy: this.ship.vy + dir.y * speed,
-      vz: this.ship.vz + dir.z * speed,
+    this.createExplosionFX(x, y, z, 0x8ec2ff, 0.78);
+    this.spawnShockwave(x, y, z, {
+      color: 0x93beff,
+      opacity: 0.52,
+      inner: 0.7,
+      outer: 2,
+      speed: 68,
+      life: 0.95,
     });
-    proj.life = 6;
+    this.updateStats();
   }
 
   generateSystem() {
@@ -965,9 +1256,20 @@ class UniverseEngine {
   }
 
   getGravityScaleFor(body) {
-    if (body.type === BODY_TYPES.BLACKHOLE) return this.gravityScale * 4.3;
+    if (body.type === BODY_TYPES.BLACKHOLE) return this.gravityScale * 7.2;
     if (body.type === BODY_TYPES.STAR) return this.gravityScale * 1.15;
     return this.gravityScale;
+  }
+
+  radiusFromMass(mass, type) {
+    const safeMass = Math.max(1, mass);
+    if (type === BODY_TYPES.BLACKHOLE) return Math.max(3.4, Math.sqrt(safeMass / 3200));
+    if (type === BODY_TYPES.STAR) return Math.max(3, Math.cbrt(safeMass / 120));
+    if (type === BODY_TYPES.MOON) return Math.max(0.7, Math.cbrt(safeMass / 3.2));
+    if (type === BODY_TYPES.ASTEROID || type === BODY_TYPES.FRAGMENT || type === BODY_TYPES.COMET) {
+      return Math.max(0.35, Math.cbrt(safeMass / 2.2));
+    }
+    return Math.max(0.8, Math.cbrt(safeMass / 10));
   }
 
   applyNBody(dt) {
@@ -1013,6 +1315,50 @@ class UniverseEngine {
     }
   }
 
+  stabilizeBlackHolePairs(dt) {
+    const holes = this.bodies.filter((b) => b.alive && b.type === BODY_TYPES.BLACKHOLE);
+    if (holes.length < 2) return;
+
+    for (let i = 0; i < holes.length; i++) {
+      const a = holes[i];
+      for (let j = i + 1; j < holes.length; j++) {
+        const b = holes[j];
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        const dz = b.z - a.z;
+        const distSq = dx * dx + dy * dy + dz * dz + 30;
+        const dist = Math.sqrt(distSq);
+        if (dist < 0.00001) continue;
+
+        const nx = dx / dist;
+        const ny = dy / dist;
+        const nz = dz / dist;
+
+        const pairPull = (this.G * this.gravityScale * 28) / distSq;
+        a.vx += nx * pairPull * dt;
+        a.vy += ny * pairPull * dt;
+        a.vz += nz * pairPull * dt;
+        b.vx -= nx * pairPull * dt;
+        b.vy -= ny * pairPull * dt;
+        b.vz -= nz * pairPull * dt;
+
+        const rvx = b.vx - a.vx;
+        const rvy = b.vy - a.vy;
+        const rvz = b.vz - a.vz;
+        const radial = rvx * nx + rvy * ny + rvz * nz;
+        if (radial > 0) {
+          const correction = radial * 0.6;
+          a.vx += nx * correction * 0.5;
+          a.vy += ny * correction * 0.5;
+          a.vz += nz * correction * 0.5;
+          b.vx -= nx * correction * 0.5;
+          b.vy -= ny * correction * 0.5;
+          b.vz -= nz * correction * 0.5;
+        }
+      }
+    }
+  }
+
   applyDecayAndInstability(dt) {
     for (const b of this.bodies) {
       if (!b.alive) continue;
@@ -1028,11 +1374,6 @@ class UniverseEngine {
         b.vx += rand(-n, n);
         b.vy += rand(-n, n);
         b.vz += rand(-n, n);
-      }
-
-      if (b.type === BODY_TYPES.PROJECTILE) {
-        b.life = (b.life || 5) - dt;
-        if (b.life <= 0) this.projectilesToRemove.push(b);
       }
     }
   }
@@ -1064,18 +1405,41 @@ class UniverseEngine {
       this.effectParticles.push({ mesh, vx: dir.x * speed, vy: dir.y * speed, vz: dir.z * speed, life: rand(0.4, 1.2) });
     }
 
-    const ringGeo = new THREE.RingGeometry(0.5, 1.2, 48);
-    const ringMat = new THREE.MeshBasicMaterial({
+    this.spawnShockwave(x, y, z, {
       color: 0xffc082,
-      transparent: true,
       opacity: 0.7,
+      inner: 0.5,
+      outer: 1.2,
+      speed: 38 * energy,
+      life: 0.8,
+    });
+  }
+
+  spawnShockwave(x, y, z, options = {}) {
+    const ringGeo = new THREE.RingGeometry(options.inner || 0.5, options.outer || 1.2, 64);
+    const ringMat = new THREE.MeshBasicMaterial({
+      color: options.color || 0xffc082,
+      transparent: true,
+      opacity: options.opacity || 0.7,
       side: THREE.DoubleSide,
     });
     const ring = new THREE.Mesh(ringGeo, ringMat);
     ring.position.set(x, y, z);
     ring.lookAt(this.scene.position);
+    if (options.tilt) {
+      ring.rotation.x += rand(-0.65, 0.65);
+      ring.rotation.z += rand(-0.65, 0.65);
+    }
     this.scene.add(ring);
-    this.shockwaves.push({ mesh: ring, radius: 1, speed: 38 * energy, life: 0.8 });
+    const life = options.life || 0.8;
+    this.shockwaves.push({
+      mesh: ring,
+      radius: options.radius || 1,
+      speed: options.speed || 38,
+      life,
+      maxLife: life,
+      baseOpacity: options.opacity || 0.7,
+    });
   }
 
   updateEffects(dt) {
@@ -1100,7 +1464,8 @@ class UniverseEngine {
       s.life -= dt;
       s.radius += s.speed * dt;
       s.mesh.scale.setScalar(s.radius);
-      s.mesh.material.opacity = Math.max(0, s.life * 0.8);
+      const lifeRatio = s.maxLife ? Math.max(0, s.life / s.maxLife) : Math.max(0, s.life);
+      s.mesh.material.opacity = lifeRatio * (s.baseOpacity || 0.8);
       if (s.life <= 0) {
         this.scene.remove(s.mesh);
         s.mesh.geometry.dispose();
@@ -1124,17 +1489,63 @@ class UniverseEngine {
     const removed = survivor === a ? b : a;
 
     survivor.mass = total;
-    survivor.radius = Math.cbrt(Math.max(1, total / 8));
+    survivor.radius = this.radiusFromMass(total, survivor.type);
     survivor.x = nx;
     survivor.y = ny;
     survivor.z = nz;
     survivor.vx = nvx;
     survivor.vy = nvy;
     survivor.vz = nvz;
-    survivor.mesh.scale.setScalar(Math.max(0.5, survivor.radius / survivor.mesh.geometry.parameters.radius));
+    this.updateBodyScale(survivor);
 
     this.removeBody(removed);
     this.createExplosionFX(nx, ny, nz, 0xffd17a, 0.65);
+  }
+
+  absorbIntoBlackHole(blackHole, other) {
+    if (!blackHole.alive || !other.alive) return;
+
+    let growthGain = other.mass;
+    if (other.type === BODY_TYPES.STAR) growthGain *= 1.45;
+    if (other.type === BODY_TYPES.PLANET || other.type === BODY_TYPES.MOON) growthGain *= 1.2;
+    const total = blackHole.mass + growthGain;
+
+    blackHole.x = (blackHole.x * blackHole.mass + other.x * other.mass) / total;
+    blackHole.y = (blackHole.y * blackHole.mass + other.y * other.mass) / total;
+    blackHole.z = (blackHole.z * blackHole.mass + other.z * other.mass) / total;
+    blackHole.vx = (blackHole.vx * blackHole.mass + other.vx * other.mass) / total;
+    blackHole.vy = (blackHole.vy * blackHole.mass + other.vy * other.mass) / total;
+    blackHole.vz = (blackHole.vz * blackHole.mass + other.vz * other.mass) / total;
+    blackHole.mass = total;
+    blackHole.radius = this.radiusFromMass(total, BODY_TYPES.BLACKHOLE);
+    blackHole.temperature = Math.min(1e8, (blackHole.temperature || 0) + (other.temperature || 0) * 0.2 + 40000);
+
+    this.updateBodyScale(blackHole);
+
+    this.removeBody(other);
+    this.createExplosionFX(blackHole.x, blackHole.y, blackHole.z, 0xffa66a, 0.24);
+  }
+
+  processBlackHoleAccretion() {
+    const holes = this.bodies.filter((b) => b.alive && b.type === BODY_TYPES.BLACKHOLE);
+    if (holes.length === 0) return;
+
+    for (const hole of holes) {
+      if (!hole.alive) continue;
+      for (const body of this.bodies) {
+        if (!body.alive || body.id === hole.id || body.type === BODY_TYPES.BLACKHOLE) continue;
+
+        const dx = body.x - hole.x;
+        const dy = body.y - hole.y;
+        const dz = body.z - hole.z;
+        const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        const swallowRadius = hole.radius * 3.4 + body.radius * 0.8;
+
+        if (dist <= swallowRadius) {
+          this.absorbIntoBlackHole(hole, body);
+        }
+      }
+    }
   }
 
   explode(a, b) {
@@ -1207,12 +1618,19 @@ class UniverseEngine {
           b.type === BODY_TYPES.FRAGMENT ||
           a.type === BODY_TYPES.COMET ||
           b.type === BODY_TYPES.COMET;
-        const highImpact =
-          a.type === BODY_TYPES.BLACKHOLE ||
-          b.type === BODY_TYPES.BLACKHOLE ||
-          a.type === BODY_TYPES.PROJECTILE ||
-          b.type === BODY_TYPES.PROJECTILE ||
-          (involvesSmallBody && rel > 72);
+
+        if (a.type === BODY_TYPES.BLACKHOLE || b.type === BODY_TYPES.BLACKHOLE) {
+          const blackHole = a.type === BODY_TYPES.BLACKHOLE ? a : b;
+          const other = blackHole === a ? b : a;
+          if (other.type === BODY_TYPES.BLACKHOLE) {
+            this.merge(blackHole, other);
+          } else {
+            this.absorbIntoBlackHole(blackHole, other);
+          }
+          break;
+        }
+
+        const highImpact = involvesSmallBody && rel > 72;
         if (highImpact) this.explode(a, b); else this.merge(a, b);
 
         break;
@@ -1220,12 +1638,6 @@ class UniverseEngine {
     }
 
     this.bodies = this.bodies.filter((b) => b.alive);
-    if (this.projectilesToRemove.length > 0) {
-      for (const p of this.projectilesToRemove) {
-        if (p.alive) this.removeBody(p);
-      }
-      this.projectilesToRemove.length = 0;
-    }
   }
 
   triggerSupernovaOn(body) {
@@ -1292,6 +1704,15 @@ class UniverseEngine {
       if (b.glow) b.glow.position.set(b.x, b.y, b.z);
       if (b.ring) b.ring.position.set(b.x, b.y, b.z);
       if (b.atmosphereMesh) b.atmosphereMesh.position.set(b.x, b.y, b.z);
+      if (b.blackHoleDisk) {
+        b.blackHoleDisk.position.set(b.x, b.y, b.z);
+        b.blackHoleDisk.rotation.y += 0.012;
+        b.blackHoleDisk.rotation.z += 0.004;
+      }
+      if (b.blackHoleHalo) {
+        b.blackHoleHalo.position.set(b.x, b.y, b.z);
+        b.blackHoleHalo.lookAt(this.scene.position);
+      }
 
       if (b.trailLine) {
         b.trailLine.visible = this.trailsEnabled;
@@ -1358,20 +1779,18 @@ class UniverseEngine {
     this.updateStats();
   }
 
-  tick(dt, shipControl) {
+  tick(dt) {
     if (this.paused && !this.stepOnce) return;
 
     const step = Math.min(dt * this.timeScale, 0.05);
     this.simYears += (step * 40) / 365;
 
     this.applyNBody(step);
+    this.stabilizeBlackHolePairs(step);
     this.applyDecayAndInstability(step);
 
-    if (this.ship && this.ship.alive && shipControl) {
-      shipControl(this.ship, step);
-    }
-
     this.integrate(step);
+    this.processBlackHoleAccretion();
     this.handleCollisions();
     this.maybeRandomSupernova(step);
     this.updateVisuals();
@@ -1426,12 +1845,6 @@ class UniverseApp {
     this.lastGrabPoint = null;
     this.lastGrabVelocity = new THREE.Vector3();
 
-    this.shipKeys = {
-      KeyW: false, KeyS: false, KeyA: false, KeyD: false,
-      KeyQ: false, KeyE: false, KeyR: false, KeyF: false,
-      ShiftLeft: false, KeyX: false,
-    };
-
     this.els = this.collectEls();
     this.bindUI();
     this.bindInput();
@@ -1480,9 +1893,10 @@ class UniverseApp {
       scenarioImpact: q('scenario-impact'),
       scenarioRings: q('scenario-rings'),
 
-      spawnShip: q('spawn-ship'),
-      fireProjectile: q('fire-projectile'),
-      fullscreen: q('btn-fullscreen'),
+      eventMeteor: q('event-meteor'),
+      eventPulse: q('event-pulse'),
+      eventFlare: q('event-flare'),
+      eventRogue: q('event-rogue'),
 
       statBodies: q('stat-bodies'),
       statPlanets: q('stat-planets'),
@@ -1615,20 +2029,10 @@ class UniverseApp {
     this.els.scenarioImpact.addEventListener('click', () => { this.engine.scenarioImpactTest(); this.clearSelectionPanel(); });
     this.els.scenarioRings.addEventListener('click', () => { this.engine.scenarioRingWorld(); this.clearSelectionPanel(); });
 
-    this.els.spawnShip.addEventListener('click', () => {
-      this.engine.spawnShip(0, 30, 0);
-    });
-    this.els.fireProjectile.addEventListener('click', () => {
-      this.engine.fireProjectile();
-    });
-
-    if (this.els.fullscreen) {
-      this.els.fullscreen.addEventListener('click', async () => {
-        await goFullscreen();
-        lockLandscapeOrientation();
-        updateRotateOverlayVisibility();
-      });
-    }
+    this.els.eventMeteor.addEventListener('click', () => this.engine.triggerMeteorStorm());
+    this.els.eventPulse.addEventListener('click', () => this.engine.triggerGravityPulse());
+    this.els.eventFlare.addEventListener('click', () => this.engine.triggerSolarFlare());
+    this.els.eventRogue.addEventListener('click', () => this.engine.triggerRogueInfall());
 
     this.els.applyEdit.addEventListener('click', () => this.applyEditor());
     this.els.zeroVelocity.addEventListener('click', () => this.zeroSelectedVelocity());
@@ -1742,8 +2146,6 @@ class UniverseApp {
     });
 
     window.addEventListener('keydown', (e) => {
-      if (e.code in this.shipKeys) this.shipKeys[e.code] = true;
-      if (e.code === 'KeyJ') this.engine.fireProjectile();
       if (e.code === 'Digit1') this.setToolMode('select');
       if (e.code === 'Digit2') this.setToolMode('spawn-planet');
       if (e.code === 'Digit3') this.setToolMode('spawn-star');
@@ -1751,10 +2153,10 @@ class UniverseApp {
       if (e.code === 'Digit5') this.setToolMode('delete');
       if (e.code === 'Digit6') this.setToolMode('grab');
       if (e.code === 'Digit7') this.setToolMode('laser');
-    });
-
-    window.addEventListener('keyup', (e) => {
-      if (e.code in this.shipKeys) this.shipKeys[e.code] = false;
+      if (e.code === 'KeyM') this.engine.triggerMeteorStorm();
+      if (e.code === 'KeyG') this.engine.triggerGravityPulse();
+      if (e.code === 'KeyF') this.engine.triggerSolarFlare();
+      if (e.code === 'KeyR') this.engine.triggerRogueInfall();
     });
   }
 
@@ -1835,9 +2237,7 @@ class UniverseApp {
     body.vy = parseFloat(this.els.editVy.value) || 0;
     body.vz = parseFloat(this.els.editVz.value) || 0;
 
-    if (body.mesh) {
-      body.mesh.scale.setScalar(Math.max(0.5, body.radius / body.mesh.geometry.parameters.radius));
-    }
+    this.engine.updateBodyScale(body);
 
     this.engine.enableRing(body, this.els.editRing.checked);
     this.engine.enableAtmosphere(body, this.els.editAtmo.checked);
@@ -1897,54 +2297,6 @@ class UniverseApp {
     this.els.infoTemp.textContent = `Temperature: ${(body.temperature || 0).toFixed(0)} K`;
   }
 
-  shipController(ship, dt) {
-    const boostMultiplier = this.shipKeys.ShiftLeft ? 2.1 : 1;
-    const thrust = 34 * boostMultiplier;
-    const yawSpeed = 2.4;
-
-    if (ship.mesh) {
-      if (this.shipKeys.KeyQ) ship.mesh.rotation.y += yawSpeed * dt;
-      if (this.shipKeys.KeyE) ship.mesh.rotation.y -= yawSpeed * dt;
-    }
-
-    const fwd = new THREE.Vector3(0, 0, -1);
-    const right = new THREE.Vector3(1, 0, 0);
-    if (ship.mesh) {
-      fwd.applyQuaternion(ship.mesh.quaternion);
-      right.applyQuaternion(ship.mesh.quaternion);
-    }
-
-    if (this.shipKeys.KeyW) {
-      ship.vx += fwd.x * thrust * dt;
-      ship.vy += fwd.y * thrust * dt;
-      ship.vz += fwd.z * thrust * dt;
-    }
-    if (this.shipKeys.KeyS) {
-      ship.vx -= fwd.x * thrust * dt;
-      ship.vy -= fwd.y * thrust * dt;
-      ship.vz -= fwd.z * thrust * dt;
-    }
-    if (this.shipKeys.KeyA) {
-      ship.vx -= right.x * thrust * 0.7 * dt;
-      ship.vy -= right.y * thrust * 0.7 * dt;
-      ship.vz -= right.z * thrust * 0.7 * dt;
-    }
-    if (this.shipKeys.KeyD) {
-      ship.vx += right.x * thrust * 0.7 * dt;
-      ship.vy += right.y * thrust * 0.7 * dt;
-      ship.vz += right.z * thrust * 0.7 * dt;
-    }
-    if (this.shipKeys.KeyR) ship.vy += thrust * 0.8 * dt;
-    if (this.shipKeys.KeyF) ship.vy -= thrust * 0.8 * dt;
-
-    if (this.shipKeys.KeyX) {
-      const damping = Math.max(0, 1 - 3.2 * dt);
-      ship.vx *= damping;
-      ship.vy *= damping;
-      ship.vz *= damping;
-    }
-  }
-
   bindResize() {
     window.addEventListener('resize', () => {
       this.camera.aspect = window.innerWidth / window.innerHeight;
@@ -1992,7 +2344,7 @@ class UniverseApp {
     const dt = Math.min((now - (this.prev || now)) / 1000, 0.04);
     this.prev = now;
 
-    this.engine.tick(dt, (ship, stepDt) => this.shipController(ship, stepDt));
+    this.engine.tick(dt);
     this.syncStats();
     this.drawSpawnVectorHint();
 
@@ -2004,6 +2356,7 @@ class UniverseApp {
 const app = new UniverseApp();
 app.engine.generateSystem();
 })();
+
 
 
 

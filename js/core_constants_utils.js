@@ -6,8 +6,6 @@ const BODY_TYPES = {
   COMET: 'comet',
   BLACKHOLE: 'blackhole',
   FRAGMENT: 'fragment',
-  SHIP: 'ship',
-  PROJECTILE: 'projectile',
 };
 
 const STAR_TYPES = [

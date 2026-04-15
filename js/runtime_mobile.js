@@ -1,4 +1,4 @@
-﻿const runtimeErrorEl = document.getElementById('runtime-error');
+const runtimeErrorEl = document.getElementById('runtime-error');
 
 function showRuntimeError(message) {
   if (!runtimeErrorEl) return;
@@ -41,34 +41,34 @@ function lockLandscapeOrientation() {
   }
 }
 
+function isLandscapeViewport() {
+  return window.innerWidth >= window.innerHeight;
+}
+
 async function goFullscreen() {
-  if (isFileProtocol()) return;
-  const elem = document.documentElement;
-  try {
-    if (elem.requestFullscreen) await elem.requestFullscreen({ navigationUI: 'hide' });
-    else if (elem.webkitRequestFullscreen) await elem.webkitRequestFullscreen();
-    else if (elem.msRequestFullscreen) await elem.msRequestFullscreen();
-  } catch (_) {
-    // Ignore unsupported fullscreen APIs.
-  }
+if (isFileProtocol()) return;
+const elem = document.documentElement;
+try {
+  if (elem.requestFullscreen) await elem.requestFullscreen({ navigationUI: 'hide' });
+  else if (elem.webkitRequestFullscreen) await elem.webkitRequestFullscreen();
+  else if (elem.msRequestFullscreen) await elem.msRequestFullscreen();
+} catch (_) {
+  // Ignore unsupported fullscreen APIs and permission failures.
+}
+}
+
+function requestMobileFullscreenIfReady() {
+if (!isMobileDevice() || !isLandscapeViewport() || isFileProtocol()) return;
+const activeFullscreen = document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement;
+if (activeFullscreen) return;
+goFullscreen();
 }
 
 window.addEventListener('load', () => {
-  if (!isMobileDevice()) return;
-  lockLandscapeOrientation();
-  updateRotateOverlayVisibility();
-  if (!isFileProtocol()) {
-    setTimeout(goFullscreen, 500);
-  }
+if (!isMobileDevice()) return;
+lockLandscapeOrientation();
+updateRotateOverlayVisibility();
 });
 
 window.addEventListener('resize', updateRotateOverlayVisibility);
 window.addEventListener('orientationchange', updateRotateOverlayVisibility);
-
-document.addEventListener('touchstart', () => {
-  if (isMobileDevice() && !isFileProtocol()) goFullscreen();
-}, { once: true });
-
-document.addEventListener('click', () => {
-  if (isMobileDevice() && !isFileProtocol()) goFullscreen();
-}, { once: true });

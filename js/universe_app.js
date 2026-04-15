@@ -26,12 +26,6 @@ class UniverseApp {
     this.lastGrabPoint = null;
     this.lastGrabVelocity = new THREE.Vector3();
 
-    this.shipKeys = {
-      KeyW: false, KeyS: false, KeyA: false, KeyD: false,
-      KeyQ: false, KeyE: false, KeyR: false, KeyF: false,
-      ShiftLeft: false, KeyX: false,
-    };
-
     this.els = this.collectEls();
     this.bindUI();
     this.bindInput();
@@ -80,9 +74,10 @@ class UniverseApp {
       scenarioImpact: q('scenario-impact'),
       scenarioRings: q('scenario-rings'),
 
-      spawnShip: q('spawn-ship'),
-      fireProjectile: q('fire-projectile'),
-      fullscreen: q('btn-fullscreen'),
+      eventMeteor: q('event-meteor'),
+      eventPulse: q('event-pulse'),
+      eventFlare: q('event-flare'),
+      eventRogue: q('event-rogue'),
 
       statBodies: q('stat-bodies'),
       statPlanets: q('stat-planets'),
@@ -215,20 +210,10 @@ class UniverseApp {
     this.els.scenarioImpact.addEventListener('click', () => { this.engine.scenarioImpactTest(); this.clearSelectionPanel(); });
     this.els.scenarioRings.addEventListener('click', () => { this.engine.scenarioRingWorld(); this.clearSelectionPanel(); });
 
-    this.els.spawnShip.addEventListener('click', () => {
-      this.engine.spawnShip(0, 30, 0);
-    });
-    this.els.fireProjectile.addEventListener('click', () => {
-      this.engine.fireProjectile();
-    });
-
-    if (this.els.fullscreen) {
-      this.els.fullscreen.addEventListener('click', async () => {
-        await goFullscreen();
-        lockLandscapeOrientation();
-        updateRotateOverlayVisibility();
-      });
-    }
+    if (this.els.eventMeteor) this.els.eventMeteor.addEventListener('click', () => this.engine.triggerMeteorStorm());
+    if (this.els.eventPulse) this.els.eventPulse.addEventListener('click', () => this.engine.triggerGravityPulse());
+    if (this.els.eventFlare) this.els.eventFlare.addEventListener('click', () => this.engine.triggerSolarFlare());
+    if (this.els.eventRogue) this.els.eventRogue.addEventListener('click', () => this.engine.triggerRogueInfall());
 
     this.els.applyEdit.addEventListener('click', () => this.applyEditor());
     this.els.zeroVelocity.addEventListener('click', () => this.zeroSelectedVelocity());
@@ -346,8 +331,6 @@ class UniverseApp {
     });
 
     window.addEventListener('keydown', (e) => {
-      if (e.code in this.shipKeys) this.shipKeys[e.code] = true;
-      if (e.code === 'KeyJ') this.engine.fireProjectile();
       if (e.code === 'Digit1') this.setToolMode('select');
       if (e.code === 'Digit2') this.setToolMode('spawn-planet');
       if (e.code === 'Digit3') this.setToolMode('spawn-star');
@@ -361,10 +344,10 @@ class UniverseApp {
         const desiredDistance = Math.max(60, Math.min(1400, b.radius * 34));
         this.cam.frameTarget(new THREE.Vector3(b.x, b.y, b.z), desiredDistance);
       }
-    });
-
-    window.addEventListener('keyup', (e) => {
-      if (e.code in this.shipKeys) this.shipKeys[e.code] = false;
+      if (this.els.eventMeteor && e.code === 'KeyM') this.engine.triggerMeteorStorm();
+      if (this.els.eventPulse && e.code === 'KeyG') this.engine.triggerGravityPulse();
+      if (this.els.eventFlare && e.code === 'KeyF') this.engine.triggerSolarFlare();
+      if (this.els.eventRogue && e.code === 'KeyR') this.engine.triggerRogueInfall();
     });
   }
 
@@ -445,9 +428,7 @@ class UniverseApp {
     body.vy = parseFloat(this.els.editVy.value) || 0;
     body.vz = parseFloat(this.els.editVz.value) || 0;
 
-    if (body.mesh) {
-      body.mesh.scale.setScalar(Math.max(0.5, body.radius / body.mesh.geometry.parameters.radius));
-    }
+    this.engine.updateBodyScale(body);
 
     this.engine.enableRing(body, this.els.editRing.checked);
     this.engine.enableAtmosphere(body, this.els.editAtmo.checked);
@@ -507,54 +488,6 @@ class UniverseApp {
     this.els.infoTemp.textContent = `Temperature: ${(body.temperature || 0).toFixed(0)} K`;
   }
 
-  shipController(ship, dt) {
-    const boostMultiplier = this.shipKeys.ShiftLeft ? 2.1 : 1;
-    const thrust = 34 * boostMultiplier;
-    const yawSpeed = 2.4;
-
-    if (ship.mesh) {
-      if (this.shipKeys.KeyQ) ship.mesh.rotation.y += yawSpeed * dt;
-      if (this.shipKeys.KeyE) ship.mesh.rotation.y -= yawSpeed * dt;
-    }
-
-    const fwd = new THREE.Vector3(0, 0, -1);
-    const right = new THREE.Vector3(1, 0, 0);
-    if (ship.mesh) {
-      fwd.applyQuaternion(ship.mesh.quaternion);
-      right.applyQuaternion(ship.mesh.quaternion);
-    }
-
-    if (this.shipKeys.KeyW) {
-      ship.vx += fwd.x * thrust * dt;
-      ship.vy += fwd.y * thrust * dt;
-      ship.vz += fwd.z * thrust * dt;
-    }
-    if (this.shipKeys.KeyS) {
-      ship.vx -= fwd.x * thrust * dt;
-      ship.vy -= fwd.y * thrust * dt;
-      ship.vz -= fwd.z * thrust * dt;
-    }
-    if (this.shipKeys.KeyA) {
-      ship.vx -= right.x * thrust * 0.7 * dt;
-      ship.vy -= right.y * thrust * 0.7 * dt;
-      ship.vz -= right.z * thrust * 0.7 * dt;
-    }
-    if (this.shipKeys.KeyD) {
-      ship.vx += right.x * thrust * 0.7 * dt;
-      ship.vy += right.y * thrust * 0.7 * dt;
-      ship.vz += right.z * thrust * 0.7 * dt;
-    }
-    if (this.shipKeys.KeyR) ship.vy += thrust * 0.8 * dt;
-    if (this.shipKeys.KeyF) ship.vy -= thrust * 0.8 * dt;
-
-    if (this.shipKeys.KeyX) {
-      const damping = Math.max(0, 1 - 3.2 * dt);
-      ship.vx *= damping;
-      ship.vy *= damping;
-      ship.vz *= damping;
-    }
-  }
-
   bindResize() {
     window.addEventListener('resize', () => {
       this.camera.aspect = window.innerWidth / window.innerHeight;
@@ -602,7 +535,7 @@ class UniverseApp {
     const dt = Math.min((now - (this.prev || now)) / 1000, 0.04);
     this.prev = now;
 
-    this.engine.tick(dt, (ship, stepDt) => this.shipController(ship, stepDt));
+    this.engine.tick(dt);
     this.syncStats();
     this.drawSpawnVectorHint();
 

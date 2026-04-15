@@ -71,16 +71,16 @@ body {
 
 .hud-left {
   left: 14px;
-  top: 12px;
-  width: min(338px, calc(50vw - 28px));
-  padding: 13px 12px 10px;
+  top: 10px;
+  width: min(300px, calc(42vw - 24px));
+  padding: 11px 10px 9px;
 }
 
 .hud-right {
   right: 15px;
-  top: 20px;
-  width: min(298px, calc(50vw - 26px));
-  padding: 11px 11px 12px;
+  top: 14px;
+  width: min(264px, calc(40vw - 22px));
+  padding: 10px 9px 10px;
 }
 
 .hud-left.collapsed {
@@ -209,9 +209,11 @@ button:active {
   font-size: 0.76rem;
 }
 
-.btn-chip-wide {
-  padding-left: 10px;
-  padding-right: 10px;
+.button-grid-3 .btn-chip {
+  white-space: nowrap;
+  text-align: center;
+  font-size: 0.72rem;
+  padding: 6px 5px;
 }
 
 .tool-active {
@@ -288,12 +290,12 @@ input[type='range'] {
 }
 
 .tray-handle-left {
-  left: calc(14px + min(338px, calc(50vw - 28px)) + 7px);
+  left: calc(14px + min(300px, calc(42vw - 24px)) + 6px);
   border-radius: 0 9px 9px 0;
 }
 
 .tray-handle-right {
-  right: calc(15px + min(298px, calc(50vw - 26px)) + 7px);
+  right: calc(15px + min(264px, calc(40vw - 22px)) + 6px);
   border-radius: 9px 0 0 9px;
 }
 
@@ -307,7 +309,7 @@ input[type='range'] {
 
 .selection-panel {
   position: fixed;
-  right: 326px;
+  right: 286px;
   top: 44px;
   width: min(304px, calc(100vw - 26px));
   max-height: calc(100vh - 64px);
@@ -472,6 +474,209 @@ input[type='range'] {
     left: 8px;
     bottom: 8px;
     max-width: calc(100vw - 16px);
+  }
+}
+
+@media (orientation: landscape) and (max-width: 980px) and (pointer: coarse) {
+  .hud,
+  .hud-left,
+  .hud-right {
+    top: 6px;
+    width: min(31vw, 224px);
+    max-height: calc(100vh - 12px);
+    padding: 8px 7px 9px;
+    border-radius: 8px;
+  }
+
+  .hud-left {
+    left: 6px;
+  }
+
+  .hud-right {
+    right: 6px;
+  }
+
+  .hud h1 {
+    font-size: 0.82rem;
+  }
+
+  .hud-kicker {
+    font-size: 0.64rem;
+    margin-top: 2px;
+  }
+
+  .panel-block {
+    margin-bottom: 6px;
+    padding: 7px 6px 7px;
+    border-radius: 8px;
+  }
+
+  .panel-block:nth-of-type(2) {
+    margin-bottom: 8px;
+  }
+
+  .panel-block h2 {
+    font-size: 0.66rem;
+  }
+
+  .section-help,
+  .inline-note {
+    font-size: 0.6rem;
+    line-height: 1.25;
+    margin-top: 4px;
+  }
+
+  .button-grid-3,
+  .button-row {
+    gap: 4px;
+    margin-bottom: 5px;
+  }
+
+  .button-row-tight {
+    margin-bottom: 4px;
+  }
+
+  button {
+    min-height: 23px;
+    padding: 4px 5px;
+    font-size: 0.61rem;
+    border-radius: 7px;
+  }
+
+  .btn-main,
+  .btn-quiet,
+  .btn-chip {
+    min-height: 23px;
+    font-size: 0.61rem;
+  }
+
+  label {
+    font-size: 0.62rem;
+    margin: 5px 0 2px;
+  }
+
+  input[type='range'] {
+    height: 12px;
+  }
+
+  input[type='number'] {
+    height: 24px;
+    font-size: 0.62rem;
+    padding: 2px 4px;
+  }
+
+  .stat-grid {
+    font-size: 0.61rem;
+    gap: 4px 5px;
+  }
+
+  .tray-handle {
+    width: 20px;
+    height: 48px;
+    font-size: 0.82rem;
+  }
+
+  .tray-handle-left {
+    left: calc(6px + min(31vw, 224px) + 4px);
+  }
+
+  .tray-handle-right {
+    right: calc(6px + min(31vw, 224px) + 4px);
+  }
+
+  .hud-left.collapsed ~ .tray-handle-left {
+    left: 4px;
+  }
+
+  .hud-right.collapsed ~ .tray-handle-right {
+    right: 4px;
+  }
+
+  .selection-panel {
+    right: calc(6px + min(31vw, 224px) + 5px);
+    top: 6px;
+    width: min(35vw, 248px);
+    max-height: calc(100vh - 12px);
+    padding: 8px 7px 9px;
+    border-radius: 8px;
+  }
+
+  .selection-panel h2 {
+    font-size: 0.73rem;
+  }
+
+  .selection-panel p {
+    font-size: 0.62rem;
+    margin: 4px 0;
+  }
+
+  .selection-subtitle {
+    font-size: 0.64rem;
+  }
+
+  .selection-panel .button-row {
+    gap: 4px;
+  }
+
+  .runtime-error {
+    left: 6px;
+    right: 6px;
+    bottom: 6px;
+    max-width: none;
+    font-size: 0.65rem;
+  }
+}
+
+@media (orientation: landscape) and (max-width: 740px) and (pointer: coarse) {
+  .hud,
+  .hud-left,
+  .hud-right {
+    width: min(31vw, 192px);
+    padding: 6px 5px 7px;
+  }
+
+  .button-grid-3,
+  .button-row {
+    gap: 3px;
+  }
+
+  button,
+  .btn-main,
+  .btn-quiet,
+  .btn-chip {
+    min-height: 20px;
+    padding: 3px 4px;
+    font-size: 0.56rem;
+  }
+
+  .panel-block {
+    padding: 6px 5px 6px;
+  }
+
+  label,
+  .stat-grid,
+  .inline-note,
+  .section-help {
+    font-size: 0.56rem;
+  }
+
+  .tray-handle {
+    width: 18px;
+    height: 42px;
+  }
+
+  .tray-handle-left {
+    left: calc(6px + min(31vw, 192px) + 3px);
+  }
+
+  .tray-handle-right {
+    right: calc(6px + min(31vw, 192px) + 3px);
+  }
+
+  .selection-panel {
+    right: calc(6px + min(31vw, 192px) + 5px);
+    width: min(38vw, 220px);
+    padding: 7px 6px 8px;
   }
 }
 
