@@ -26,10 +26,12 @@
         <button id="tool-spawn-star" class="btn-chip">Star</button>
         <button id="tool-spawn-blackhole" class="btn-chip">Black Hole</button>
         <button id="tool-delete" class="btn-chip">Delete</button>
-        <button id="tool-grab" class="btn-chip">Grab + Throw</button>
-        <button id="tool-laser" class="btn-chip">Laser</button>
+        <button id="tool-grab" class="btn-chip" title="Drag body and release to throw">Grab and Throw</button>
+        <button id="tool-laser" class="btn-chip" title="Tap body to vaporize and blast nearby objects">Laser</button>
       </div>
       <p id="tool-mode" class="inline-note">Mode: Select</p>
+      <p class="inline-note">Grab and Throw: drag any body and release to launch it.</p>
+      <p class="inline-note">Laser: tap a body to delete it and push nearby bodies.</p>
       <p class="inline-note">Shortcuts: 1-7 switch tools quickly</p>
     </section>
 
@@ -92,8 +94,9 @@
       </div>
     </section>
 
-    <section class="panel-block">
+    <section class="panel-block panel-events">
       <h2>Cosmic Events</h2>
+      <p class="section-help section-help-tight">Trigger dramatic system-wide interventions.</p>
       <div class="button-row">
         <button id="event-meteor" class="btn-main">Meteor Storm</button>
         <button id="event-pulse" class="btn-quiet">Gravity Pulse</button>
@@ -105,7 +108,6 @@
       <p class="inline-note">Meteor Storm injects fast comets and asteroids into the active system.</p>
       <p class="inline-note">Gravity Pulse blasts nearby bodies from the selected body or from center.</p>
       <p class="inline-note">Shortcuts: M storm, G pulse, F flare, R rogue infall.</p>
-      <p class="inline-note">Pre-final polish: high-energy event visuals and black-hole stability are tuned.</p>
     </section>
 
     <section class="panel-block">

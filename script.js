@@ -21,8 +21,103 @@ function isMobileDevice() {
   return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|Tablet/i.test(navigator.userAgent);
 }
 
+const TOOL_LABELS = {
+  select: 'Select',
+  'spawn-planet': 'Spawn Planet',
+  'spawn-star': 'Spawn Star',
+  'spawn-blackhole': 'Spawn Black Hole',
+  delete: 'Delete',
+  grab: 'Grab and Throw',
+  laser: 'Laser',
+};
+
+const mobileRoot = document.documentElement;
+let mobileFullscreenPending = false;
+let mobileFullscreenInFlight = false;
+
+function clampNumber(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
 function isFileProtocol() {
   return window.location.protocol === 'file:';
+}
+
+function updateMobileLayoutScale() {
+  if (!mobileRoot) return;
+
+  if (!isMobileDevice()) {
+    const props = [
+      '--mobile-ui-scale',
+      '--mobile-panel-width',
+      '--mobile-panel-width-tight',
+      '--mobile-selection-width',
+      '--mobile-selection-width-tight',
+      '--mobile-button-height',
+      '--mobile-button-height-tight',
+      '--mobile-button-font',
+      '--mobile-button-font-tight',
+      '--mobile-text-font',
+      '--mobile-text-font-tight',
+      '--mobile-handle-width',
+      '--mobile-handle-height',
+      '--mobile-handle-width-tight',
+      '--mobile-handle-height-tight',
+      '--mobile-panel-pad-y',
+      '--mobile-panel-pad-x',
+      '--mobile-panel-pad-y-tight',
+      '--mobile-panel-pad-x-tight',
+    ];
+    for (const prop of props) {
+      mobileRoot.style.removeProperty(prop);
+    }
+    return;
+  }
+
+  const vw = Math.max(window.innerWidth || 0, 1);
+  const vh = Math.max(window.innerHeight || 0, 1);
+  const shortSide = Math.min(vw, vh);
+  const longSide = Math.max(vw, vh);
+
+  const uiScale = clampNumber((shortSide / 430) * 0.75 + (longSide / 900) * 0.25, 0.72, 1);
+  const panelWidth = Math.round(clampNumber(shortSide * 0.52, 166, 226));
+  const panelWidthTight = Math.round(clampNumber(shortSide * 0.49, 156, 194));
+  const selectionWidth = Math.round(clampNumber(shortSide * 0.58, 192, 252));
+  const selectionWidthTight = Math.round(clampNumber(shortSide * 0.56, 176, 224));
+  const buttonHeight = Math.round(clampNumber(23 * uiScale + 2, 20, 25));
+  const buttonHeightTight = Math.round(clampNumber(buttonHeight - 2, 18, 23));
+  const buttonFont = clampNumber(0.6 * uiScale + 0.06, 0.56, 0.66);
+  const buttonFontTight = clampNumber(buttonFont - 0.04, 0.52, 0.62);
+  const textFont = clampNumber(0.61 * uiScale + 0.05, 0.56, 0.68);
+  const textFontTight = clampNumber(textFont - 0.04, 0.52, 0.64);
+  const handleWidth = Math.round(clampNumber(20 * uiScale + 2, 18, 22));
+  const handleHeight = Math.round(clampNumber(48 * uiScale + 2, 40, 50));
+  const handleWidthTight = Math.max(16, handleWidth - 2);
+  const handleHeightTight = Math.max(38, handleHeight - 4);
+  const panelPadY = Math.round(clampNumber(8 * uiScale, 6, 9));
+  const panelPadX = Math.round(clampNumber(7 * uiScale, 5, 8));
+  const panelPadYTight = Math.max(5, panelPadY - 1);
+  const panelPadXTight = Math.max(4, panelPadX - 1);
+
+  mobileRoot.style.setProperty('--mobile-ui-scale', uiScale.toFixed(3));
+  mobileRoot.style.setProperty('--mobile-panel-width', `${panelWidth}px`);
+  mobileRoot.style.setProperty('--mobile-panel-width-tight', `${panelWidthTight}px`);
+  mobileRoot.style.setProperty('--mobile-selection-width', `${selectionWidth}px`);
+  mobileRoot.style.setProperty('--mobile-selection-width-tight', `${selectionWidthTight}px`);
+  mobileRoot.style.setProperty('--mobile-button-height', `${buttonHeight}px`);
+  mobileRoot.style.setProperty('--mobile-button-height-tight', `${buttonHeightTight}px`);
+  mobileRoot.style.setProperty('--mobile-button-font', `${buttonFont.toFixed(3)}rem`);
+  mobileRoot.style.setProperty('--mobile-button-font-tight', `${buttonFontTight.toFixed(3)}rem`);
+  mobileRoot.style.setProperty('--mobile-text-font', `${textFont.toFixed(3)}rem`);
+  mobileRoot.style.setProperty('--mobile-text-font-tight', `${textFontTight.toFixed(3)}rem`);
+  mobileRoot.style.setProperty('--mobile-handle-width', `${handleWidth}px`);
+  mobileRoot.style.setProperty('--mobile-handle-height', `${handleHeight}px`);
+  mobileRoot.style.setProperty('--mobile-handle-width-tight', `${handleWidthTight}px`);
+  mobileRoot.style.setProperty('--mobile-handle-height-tight', `${handleHeightTight}px`);
+  mobileRoot.style.setProperty('--mobile-panel-pad-y', `${panelPadY}px`);
+  mobileRoot.style.setProperty('--mobile-panel-pad-x', `${panelPadX}px`);
+  mobileRoot.style.setProperty('--mobile-panel-pad-y-tight', `${panelPadYTight}px`);
+  mobileRoot.style.setProperty('--mobile-panel-pad-x-tight', `${panelPadXTight}px`);
 }
 
 function updateRotateOverlayVisibility() {
@@ -45,36 +140,148 @@ function isLandscapeViewport() {
   return window.innerWidth >= window.innerHeight;
 }
 
-async function goFullscreen() {
-if (isFileProtocol()) return;
-const elem = document.documentElement;
-try {
-  if (elem.requestFullscreen) await elem.requestFullscreen({ navigationUI: 'hide' });
-  else if (elem.webkitRequestFullscreen) await elem.webkitRequestFullscreen();
-  else if (elem.msRequestFullscreen) await elem.msRequestFullscreen();
-} catch (_) {
-  // Ignore unsupported fullscreen APIs and permission failures.
-}
+function getFullscreenElement() {
+  return document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement || null;
 }
 
-function requestMobileFullscreenIfReady() {
-if (!isMobileDevice() || !isLandscapeViewport() || isFileProtocol()) return;
-const activeFullscreen = document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement;
-if (activeFullscreen) return;
-goFullscreen();
+async function requestFullscreenForElement(element) {
+  if (!element) return false;
+
+  if (typeof element.requestFullscreen === 'function') {
+    try {
+      await element.requestFullscreen({ navigationUI: 'hide' });
+      return true;
+    } catch (_) {
+      try {
+        await element.requestFullscreen();
+        return true;
+      } catch (_) {
+        // Continue to prefixed fallbacks.
+      }
+    }
+  }
+
+  if (typeof element.webkitRequestFullscreen === 'function') {
+    try {
+      const result = element.webkitRequestFullscreen();
+      if (result && typeof result.then === 'function') await result;
+      return true;
+    } catch (_) {
+      // Ignore and continue.
+    }
+  }
+
+  if (typeof element.msRequestFullscreen === 'function') {
+    try {
+      const result = element.msRequestFullscreen();
+      if (result && typeof result.then === 'function') await result;
+      return true;
+    } catch (_) {
+      // Ignore and continue.
+    }
+  }
+
+  return false;
+}
+
+async function goFullscreen() {
+  if (isFileProtocol()) return false;
+  if (getFullscreenElement()) return true;
+  if (mobileFullscreenInFlight) return false;
+
+  mobileFullscreenInFlight = true;
+  const candidates = [
+    document.documentElement,
+    document.body,
+    document.getElementById('universe-canvas'),
+  ];
+
+  let entered = false;
+  for (const element of candidates) {
+    entered = await requestFullscreenForElement(element);
+    if (entered || getFullscreenElement()) break;
+  }
+
+  mobileFullscreenInFlight = false;
+  return entered || !!getFullscreenElement();
+}
+
+function requestMobileFullscreenIfReady(forceLandscape = false) {
+  if (!isMobileDevice() || isFileProtocol()) return;
+  if (!forceLandscape && !isLandscapeViewport()) return;
+  if (getFullscreenElement()) {
+    mobileFullscreenPending = false;
+    return;
+  }
+
+  mobileFullscreenPending = true;
+  void goFullscreen().then((entered) => {
+    if (entered || getFullscreenElement()) {
+      mobileFullscreenPending = false;
+    }
+  });
+}
+
+function handleMobileGestureFullscreen() {
+  if (!isMobileDevice() || !isLandscapeViewport()) return;
+  if (getFullscreenElement()) {
+    mobileFullscreenPending = false;
+    return;
+  }
+  if (!mobileFullscreenPending) {
+    mobileFullscreenPending = true;
+  }
+  requestMobileFullscreenIfReady(true);
+}
+
+function handleMobileViewportChange() {
+  updateMobileLayoutScale();
+  updateRotateOverlayVisibility();
+
+  if (!isMobileDevice()) return;
+  if (isLandscapeViewport()) {
+    mobileFullscreenPending = true;
+    requestMobileFullscreenIfReady(true);
+  }
 }
 
 window.addEventListener('load', () => {
-if (!isMobileDevice()) return;
-lockLandscapeOrientation();
-updateRotateOverlayVisibility();
+  updateMobileLayoutScale();
+  if (!isMobileDevice()) return;
+  lockLandscapeOrientation();
+  handleMobileViewportChange();
+  if (!isLandscapeViewport()) {
+    mobileFullscreenPending = true;
+  }
 });
 
-window.addEventListener('resize', updateRotateOverlayVisibility);
-window.addEventListener('orientationchange', updateRotateOverlayVisibility);
-document.addEventListener('pointerdown', requestMobileFullscreenIfReady, { passive: true });
-document.addEventListener('touchstart', requestMobileFullscreenIfReady, { passive: true });
-document.addEventListener('click', requestMobileFullscreenIfReady, { passive: true });
+window.addEventListener('resize', handleMobileViewportChange);
+window.addEventListener('orientationchange', () => {
+  handleMobileViewportChange();
+  window.setTimeout(() => {
+    handleMobileViewportChange();
+    if (isLandscapeViewport()) {
+      requestMobileFullscreenIfReady(true);
+    }
+  }, 180);
+});
+document.addEventListener('fullscreenchange', () => {
+  if (getFullscreenElement()) mobileFullscreenPending = false;
+});
+document.addEventListener('webkitfullscreenchange', () => {
+  if (getFullscreenElement()) mobileFullscreenPending = false;
+});
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && isMobileDevice() && isLandscapeViewport()) {
+    mobileFullscreenPending = true;
+  }
+});
+document.addEventListener('pointerdown', handleMobileGestureFullscreen, { passive: true, capture: true });
+document.addEventListener('pointerup', handleMobileGestureFullscreen, { passive: true, capture: true });
+document.addEventListener('touchstart', handleMobileGestureFullscreen, { passive: true, capture: true });
+document.addEventListener('touchend', handleMobileGestureFullscreen, { passive: true, capture: true });
+document.addEventListener('click', handleMobileGestureFullscreen, { passive: true, capture: true });
+document.addEventListener('keydown', handleMobileGestureFullscreen, { capture: true });
 
 (() => {
 const BODY_TYPES = {
@@ -418,6 +625,7 @@ class UniverseEngine {
     const mesh = new THREE.Mesh(geo, mat);
     mesh.position.set(body.x, body.y, body.z);
     mesh.userData.bodyId = body.id;
+    mesh.userData.pickable = true;
     mesh.userData.baseRadius = Math.max(0.6, body.radius);
     this.scene.add(mesh);
     body.mesh = mesh;
@@ -475,6 +683,8 @@ class UniverseEngine {
     const ring = new THREE.Mesh(rg, rm);
     ring.rotation.x = -Math.PI / 2.2;
     ring.position.copy(body.mesh.position);
+    ring.userData.bodyId = body.id;
+    ring.userData.pickable = true;
     ring.userData.baseRadius = Math.max(0.1, body.radius);
     this.scene.add(ring);
     body.ring = ring;
@@ -503,6 +713,8 @@ class UniverseEngine {
     });
     const at = new THREE.Mesh(ag, am);
     at.position.copy(body.mesh.position);
+    at.userData.bodyId = body.id;
+    at.userData.pickable = true;
     at.userData.baseRadius = Math.max(0.1, body.radius);
     this.scene.add(at);
     body.atmosphereMesh = at;
@@ -539,6 +751,8 @@ class UniverseEngine {
     const disk = new THREE.Mesh(diskGeo, diskMat);
     disk.rotation.x = -Math.PI / 2.1;
     disk.position.copy(body.mesh.position);
+    disk.userData.bodyId = body.id;
+    disk.userData.pickable = true;
     disk.userData.baseRadius = Math.max(0.1, body.radius);
     this.scene.add(disk);
     body.blackHoleDisk = disk;
@@ -554,6 +768,8 @@ class UniverseEngine {
     const halo = new THREE.Mesh(haloGeo, haloMat);
     halo.position.copy(body.mesh.position);
     halo.lookAt(this.scene.position);
+    halo.userData.bodyId = body.id;
+    halo.userData.pickable = true;
     halo.userData.baseRadius = Math.max(0.1, body.radius);
     this.scene.add(halo);
     body.blackHoleHalo = halo;
@@ -1807,11 +2023,21 @@ const impulse = Math.max(0, (impulseBase * falloff) / massResistance);
   }
 
   pickBody(raycaster) {
-    const meshes = [];
-    for (const b of this.bodies) if (b.alive && b.mesh) meshes.push(b.mesh);
-    const hit = raycaster.intersectObjects(meshes, false)[0];
+    const pickables = [];
+    for (const b of this.bodies) {
+      if (!b.alive) continue;
+      if (b.mesh) pickables.push(b.mesh);
+      if (b.ring) pickables.push(b.ring);
+      if (b.atmosphereMesh) pickables.push(b.atmosphereMesh);
+      if (b.blackHoleDisk) pickables.push(b.blackHoleDisk);
+      if (b.blackHoleHalo) pickables.push(b.blackHoleHalo);
+    }
+
+    const hit = raycaster.intersectObjects(pickables, false)[0];
     if (!hit) return null;
-    return this.idToBody.get(hit.object.userData.bodyId) || null;
+    const bodyId = hit.object?.userData?.bodyId;
+    if (!bodyId) return null;
+    return this.idToBody.get(bodyId) || null;
   }
 }
 
@@ -1842,6 +2068,8 @@ class UniverseApp {
     this.dragSpawn = null;
     this.grabbedBody = null;
     this.grabPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+    this.grabPointerId = null;
+    this.grabStartPoint = null;
     this.lastGrabPoint = null;
     this.lastGrabVelocity = new THREE.Vector3();
 
@@ -1941,7 +2169,8 @@ class UniverseApp {
 
   setToolMode(mode) {
     this.toolMode = mode;
-    this.els.toolMode.textContent = `Mode: ${mode}`;
+    const label = TOOL_LABELS[mode] || mode;
+    this.els.toolMode.textContent = `Mode: ${label}`;
 
     const toolButtons = [
       [this.els.toolSelect, 'select'],
@@ -2064,8 +2293,17 @@ class UniverseApp {
 
       const body = this.pickAt(e.clientX, e.clientY);
       if (this.toolMode === 'grab' && body) {
+        if (typeof this.canvas.setPointerCapture === 'function') {
+          try {
+            this.canvas.setPointerCapture(e.pointerId);
+          } catch (_) {
+            // Ignore browsers that reject pointer capture for this event.
+          }
+        }
+        this.grabPointerId = e.pointerId;
         this.grabbedBody = body;
         this.lastGrabPoint = this.getPointerPlanePoint(e.clientX, e.clientY, body.y);
+        this.grabStartPoint = this.lastGrabPoint ? this.lastGrabPoint.clone() : null;
         this.lastGrabVelocity.set(0, 0, 0);
         return;
       }
@@ -2083,10 +2321,12 @@ class UniverseApp {
       }
 
       if (this.grabbedBody && this.grabbedBody.alive) {
+        if (this.grabPointerId !== null && e.pointerId !== this.grabPointerId) return;
         const p = this.getPointerPlanePoint(e.clientX, e.clientY, this.grabbedBody.y);
         if (!p) return;
         if (this.lastGrabPoint) {
-          this.lastGrabVelocity.copy(p).sub(this.lastGrabPoint).multiplyScalar(8);
+          const instantVelocity = p.clone().sub(this.lastGrabPoint).multiplyScalar(11.5);
+          this.lastGrabVelocity.lerp(instantVelocity, 0.6);
         }
         this.lastGrabPoint = p.clone();
         this.grabbedBody.x = p.x;
@@ -2102,9 +2342,30 @@ class UniverseApp {
       const moved = Math.hypot(e.clientX - this.pointerDown.x, e.clientY - this.pointerDown.y);
 
       if (this.grabbedBody) {
-        this.grabbedBody.vx += this.lastGrabVelocity.x;
-        this.grabbedBody.vy += this.lastGrabVelocity.y;
-        this.grabbedBody.vz += this.lastGrabVelocity.z;
+        if (typeof this.canvas.releasePointerCapture === 'function' && this.grabPointerId !== null) {
+          try {
+            this.canvas.releasePointerCapture(this.grabPointerId);
+          } catch (_) {
+            // Ignore release failures.
+          }
+        }
+
+        const throwVelocity = this.lastGrabVelocity.clone();
+        const releasePoint = this.getPointerPlanePoint(e.clientX, e.clientY, this.grabbedBody.y);
+        if (throwVelocity.lengthSq() < 0.0001 && this.grabStartPoint && releasePoint) {
+          throwVelocity.copy(releasePoint).sub(this.grabStartPoint).multiplyScalar(2.6);
+        }
+
+        const maxThrowSpeed = 200 / Math.max(1, Math.cbrt(this.grabbedBody.mass));
+        if (throwVelocity.length() > maxThrowSpeed) {
+          throwVelocity.setLength(maxThrowSpeed);
+        }
+
+        this.grabbedBody.vx += throwVelocity.x;
+        this.grabbedBody.vy += throwVelocity.y;
+        this.grabbedBody.vz += throwVelocity.z;
+        this.grabPointerId = null;
+        this.grabStartPoint = null;
         this.grabbedBody = null;
         return;
       }
@@ -2204,6 +2465,7 @@ class UniverseApp {
 
   laserDestroy(body) {
     const center = { x: body.x, y: body.y, z: body.z };
+    this.createLaserBeamFX(center.x, center.y, center.z);
     this.engine.removeBody(body);
     this.engine.createExplosionFX(center.x, center.y, center.z, 0xff3d3d, 1.4);
     const near = this.engine.bodies.filter((b) => b.alive && Math.hypot(b.x - center.x, b.y - center.y, b.z - center.z) < 120);
@@ -2214,6 +2476,29 @@ class UniverseApp {
       b.vy += dir.y * push;
       b.vz += dir.z * push;
     }
+  }
+
+  createLaserBeamFX(x, y, z) {
+    const origin = new THREE.Vector3();
+    this.camera.getWorldPosition(origin);
+    const target = new THREE.Vector3(x, y, z);
+
+    const geometry = new THREE.BufferGeometry().setFromPoints([origin, target]);
+    const material = new THREE.LineBasicMaterial({
+      color: 0xff5a5a,
+      transparent: true,
+      opacity: 0.95,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    const beam = new THREE.Line(geometry, material);
+    this.scene.add(beam);
+
+    setTimeout(() => {
+      this.scene.remove(beam);
+      geometry.dispose();
+      material.dispose();
+    }, 90);
   }
 
   populateEditor(body) {

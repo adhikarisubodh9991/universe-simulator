@@ -152,6 +152,7 @@ class UniverseEngine {
     const mesh = new THREE.Mesh(geo, mat);
     mesh.position.set(body.x, body.y, body.z);
     mesh.userData.bodyId = body.id;
+    mesh.userData.pickable = true;
     mesh.userData.baseRadius = Math.max(0.6, body.radius);
     this.scene.add(mesh);
     body.mesh = mesh;
@@ -196,42 +197,34 @@ class UniverseEngine {
   buildLabelTexture(text) {
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
-    const fontSize = 34;
-    ctx.font = `600 ${fontSize}px "Public Sans", "Segoe UI", sans-serif`;
+    const logicalFontSize = 34;
+    const resolutionScale = Math.max(2, Math.min(4, (window.devicePixelRatio || 1) * 2));
+    const fontSize = Math.round(logicalFontSize * resolutionScale);
+    ctx.font = `600 ${fontSize}px "Inter", "Segoe UI", sans-serif`;
 
     const safeText = String(text || 'Body');
     const textWidth = Math.ceil(ctx.measureText(safeText).width);
-    const padX = 28;
-    const padY = 18;
+    const padX = Math.round(28 * resolutionScale);
+    const padY = Math.round(18 * resolutionScale);
 
-    canvas.width = Math.max(128, textWidth + padX * 2);
+    canvas.width = Math.max(Math.round(128 * resolutionScale), textWidth + padX * 2);
     canvas.height = fontSize + padY * 2;
 
-    ctx.font = `600 ${fontSize}px "Public Sans", "Segoe UI", sans-serif`;
+    ctx.font = `600 ${fontSize}px "Inter", "Segoe UI", sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
 
     const midX = canvas.width / 2;
     const midY = canvas.height / 2;
 
-    ctx.fillStyle = 'rgba(4, 8, 16, 0.82)';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.98)';
-    ctx.lineWidth = 9;
-    ctx.strokeText(safeText, midX, midY);
-
-    ctx.strokeStyle = 'rgba(0, 0, 0, 0.95)';
-    ctx.lineWidth = 4;
-    ctx.strokeText(safeText, midX, midY);
-
-    ctx.fillStyle = 'rgba(255, 238, 120, 0.99)';
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = 'rgba(159, 216, 255, 0.98)';
     ctx.fillText(safeText, midX, midY);
 
     const texture = new THREE.CanvasTexture(canvas);
-    texture.minFilter = THREE.LinearFilter;
+    texture.minFilter = THREE.LinearMipmapLinearFilter;
     texture.magFilter = THREE.LinearFilter;
-    texture.generateMipmaps = false;
+    texture.generateMipmaps = true;
     texture.needsUpdate = true;
 
     return {
@@ -248,13 +241,9 @@ class UniverseEngine {
     if (!shouldShow) {
       if (body.label) {
         this.scene.remove(body.label);
-        if (body.label.material) {
-          body.label.material.dispose();
-        }
+        if (body.label.material) body.label.material.dispose();
       }
-      if (body.labelTexture) {
-        body.labelTexture.dispose();
-      }
+      if (body.labelTexture) body.labelTexture.dispose();
       body.label = null;
       body.labelTexture = null;
       return;
@@ -278,7 +267,6 @@ class UniverseEngine {
         depthWrite: false,
         depthTest: false,
       });
-
       const sprite = new THREE.Sprite(material);
       sprite.userData.text = built.text;
       sprite.userData.aspect = built.aspect;
@@ -325,6 +313,8 @@ class UniverseEngine {
     const ring = new THREE.Mesh(rg, rm);
     ring.rotation.x = -Math.PI / 2.2;
     ring.position.copy(body.mesh.position);
+    ring.userData.bodyId = body.id;
+    ring.userData.pickable = true;
     ring.userData.baseRadius = Math.max(0.1, body.radius);
     this.scene.add(ring);
     body.ring = ring;
@@ -353,6 +343,8 @@ class UniverseEngine {
     });
     const at = new THREE.Mesh(ag, am);
     at.position.copy(body.mesh.position);
+    at.userData.bodyId = body.id;
+    at.userData.pickable = true;
     at.userData.baseRadius = Math.max(0.1, body.radius);
     this.scene.add(at);
     body.atmosphereMesh = at;
@@ -389,6 +381,8 @@ class UniverseEngine {
     const disk = new THREE.Mesh(diskGeo, diskMat);
     disk.rotation.x = -Math.PI / 2.1;
     disk.position.copy(body.mesh.position);
+    disk.userData.bodyId = body.id;
+    disk.userData.pickable = true;
     disk.userData.baseRadius = Math.max(0.1, body.radius);
     this.scene.add(disk);
     body.blackHoleDisk = disk;
@@ -404,6 +398,8 @@ class UniverseEngine {
     const halo = new THREE.Mesh(haloGeo, haloMat);
     halo.position.copy(body.mesh.position);
     halo.lookAt(this.scene.position);
+    halo.userData.bodyId = body.id;
+    halo.userData.pickable = true;
     halo.userData.baseRadius = Math.max(0.1, body.radius);
     this.scene.add(halo);
     body.blackHoleHalo = halo;
@@ -1671,11 +1667,21 @@ const impulse = Math.max(0, (impulseBase * falloff) / massResistance);
   }
 
   pickBody(raycaster) {
-    const meshes = [];
-    for (const b of this.bodies) if (b.alive && b.mesh) meshes.push(b.mesh);
-    const hit = raycaster.intersectObjects(meshes, false)[0];
+    const pickables = [];
+    for (const b of this.bodies) {
+      if (!b.alive) continue;
+      if (b.mesh) pickables.push(b.mesh);
+      if (b.ring) pickables.push(b.ring);
+      if (b.atmosphereMesh) pickables.push(b.atmosphereMesh);
+      if (b.blackHoleDisk) pickables.push(b.blackHoleDisk);
+      if (b.blackHoleHalo) pickables.push(b.blackHoleHalo);
+    }
+
+    const hit = raycaster.intersectObjects(pickables, false)[0];
     if (!hit) return null;
-    return this.idToBody.get(hit.object.userData.bodyId) || null;
+    const bodyId = hit.object?.userData?.bodyId;
+    if (!bodyId) return null;
+    return this.idToBody.get(bodyId) || null;
   }
 }
 

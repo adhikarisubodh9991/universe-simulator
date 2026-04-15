@@ -23,6 +23,8 @@ class UniverseApp {
     this.dragSpawn = null;
     this.grabbedBody = null;
     this.grabPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+    this.grabPointerId = null;
+    this.grabStartPoint = null;
     this.lastGrabPoint = null;
     this.lastGrabVelocity = new THREE.Vector3();
 
@@ -122,7 +124,8 @@ class UniverseApp {
 
   setToolMode(mode) {
     this.toolMode = mode;
-    this.els.toolMode.textContent = `Mode: ${mode}`;
+    const label = TOOL_LABELS[mode] || mode;
+    this.els.toolMode.textContent = `Mode: ${label}`;
 
     const toolButtons = [
       [this.els.toolSelect, 'select'],
@@ -249,8 +252,17 @@ class UniverseApp {
 
       const body = this.pickAt(e.clientX, e.clientY);
       if (this.toolMode === 'grab' && body) {
+        if (typeof this.canvas.setPointerCapture === 'function') {
+          try {
+            this.canvas.setPointerCapture(e.pointerId);
+          } catch (_) {
+            // Ignore browsers that reject pointer capture for this event.
+          }
+        }
+        this.grabPointerId = e.pointerId;
         this.grabbedBody = body;
         this.lastGrabPoint = this.getPointerPlanePoint(e.clientX, e.clientY, body.y);
+        this.grabStartPoint = this.lastGrabPoint ? this.lastGrabPoint.clone() : null;
         this.lastGrabVelocity.set(0, 0, 0);
         return;
       }
@@ -268,10 +280,12 @@ class UniverseApp {
       }
 
       if (this.grabbedBody && this.grabbedBody.alive) {
+        if (this.grabPointerId !== null && e.pointerId !== this.grabPointerId) return;
         const p = this.getPointerPlanePoint(e.clientX, e.clientY, this.grabbedBody.y);
         if (!p) return;
         if (this.lastGrabPoint) {
-          this.lastGrabVelocity.copy(p).sub(this.lastGrabPoint).multiplyScalar(8);
+          const instantVelocity = p.clone().sub(this.lastGrabPoint).multiplyScalar(11.5);
+          this.lastGrabVelocity.lerp(instantVelocity, 0.6);
         }
         this.lastGrabPoint = p.clone();
         this.grabbedBody.x = p.x;
@@ -286,14 +300,31 @@ class UniverseApp {
     this.canvas.addEventListener('pointerup', (e) => {
       const moved = Math.hypot(e.clientX - this.pointerDown.x, e.clientY - this.pointerDown.y);
 
-      if (this.cam.wasInteractingRecently(90) && moved > 2) {
-        return;
-      }
-
       if (this.grabbedBody) {
-        this.grabbedBody.vx += this.lastGrabVelocity.x;
-        this.grabbedBody.vy += this.lastGrabVelocity.y;
-        this.grabbedBody.vz += this.lastGrabVelocity.z;
+        if (typeof this.canvas.releasePointerCapture === 'function' && this.grabPointerId !== null) {
+          try {
+            this.canvas.releasePointerCapture(this.grabPointerId);
+          } catch (_) {
+            // Ignore release failures.
+          }
+        }
+
+        const throwVelocity = this.lastGrabVelocity.clone();
+        const releasePoint = this.getPointerPlanePoint(e.clientX, e.clientY, this.grabbedBody.y);
+        if (throwVelocity.lengthSq() < 0.0001 && this.grabStartPoint && releasePoint) {
+          throwVelocity.copy(releasePoint).sub(this.grabStartPoint).multiplyScalar(2.6);
+        }
+
+        const maxThrowSpeed = 200 / Math.max(1, Math.cbrt(this.grabbedBody.mass));
+        if (throwVelocity.length() > maxThrowSpeed) {
+          throwVelocity.setLength(maxThrowSpeed);
+        }
+
+        this.grabbedBody.vx += throwVelocity.x;
+        this.grabbedBody.vy += throwVelocity.y;
+        this.grabbedBody.vz += throwVelocity.z;
+        this.grabPointerId = null;
+        this.grabStartPoint = null;
         this.grabbedBody = null;
         return;
       }
@@ -342,12 +373,6 @@ class UniverseApp {
       if (e.code === 'Digit5') this.setToolMode('delete');
       if (e.code === 'Digit6') this.setToolMode('grab');
       if (e.code === 'Digit7') this.setToolMode('laser');
-      if (e.code === 'KeyC') this.cam.reset();
-      if (e.code === 'KeyV' && this.engine.selectedBody && this.engine.selectedBody.alive) {
-        const b = this.engine.selectedBody;
-        const desiredDistance = Math.max(60, Math.min(1400, b.radius * 34));
-        this.cam.frameTarget(new THREE.Vector3(b.x, b.y, b.z), desiredDistance);
-      }
       if (e.code === 'KeyM') this.engine.triggerMeteorStorm();
       if (e.code === 'KeyG') this.engine.triggerGravityPulse();
       if (e.code === 'KeyF') this.engine.triggerSolarFlare();
@@ -399,6 +424,7 @@ class UniverseApp {
 
   laserDestroy(body) {
     const center = { x: body.x, y: body.y, z: body.z };
+    this.createLaserBeamFX(center.x, center.y, center.z);
     this.engine.removeBody(body);
     this.engine.createExplosionFX(center.x, center.y, center.z, 0xff3d3d, 1.4);
     const near = this.engine.bodies.filter((b) => b.alive && Math.hypot(b.x - center.x, b.y - center.y, b.z - center.z) < 120);
@@ -409,6 +435,29 @@ class UniverseApp {
       b.vy += dir.y * push;
       b.vz += dir.z * push;
     }
+  }
+
+  createLaserBeamFX(x, y, z) {
+    const origin = new THREE.Vector3();
+    this.camera.getWorldPosition(origin);
+    const target = new THREE.Vector3(x, y, z);
+
+    const geometry = new THREE.BufferGeometry().setFromPoints([origin, target]);
+    const material = new THREE.LineBasicMaterial({
+      color: 0xff5a5a,
+      transparent: true,
+      opacity: 0.95,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    const beam = new THREE.Line(geometry, material);
+    this.scene.add(beam);
+
+    setTimeout(() => {
+      this.scene.remove(beam);
+      geometry.dispose();
+      material.dispose();
+    }, 90);
   }
 
   populateEditor(body) {
