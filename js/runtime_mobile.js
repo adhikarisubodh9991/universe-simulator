@@ -72,3 +72,6 @@ updateRotateOverlayVisibility();
 
 window.addEventListener('resize', updateRotateOverlayVisibility);
 window.addEventListener('orientationchange', updateRotateOverlayVisibility);
+document.addEventListener('pointerdown', requestMobileFullscreenIfReady, { passive: true });
+document.addEventListener('touchstart', requestMobileFullscreenIfReady, { passive: true });
+document.addEventListener('click', requestMobileFullscreenIfReady, { passive: true });

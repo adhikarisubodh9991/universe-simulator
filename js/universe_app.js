@@ -210,10 +210,10 @@ class UniverseApp {
     this.els.scenarioImpact.addEventListener('click', () => { this.engine.scenarioImpactTest(); this.clearSelectionPanel(); });
     this.els.scenarioRings.addEventListener('click', () => { this.engine.scenarioRingWorld(); this.clearSelectionPanel(); });
 
-    if (this.els.eventMeteor) this.els.eventMeteor.addEventListener('click', () => this.engine.triggerMeteorStorm());
-    if (this.els.eventPulse) this.els.eventPulse.addEventListener('click', () => this.engine.triggerGravityPulse());
-    if (this.els.eventFlare) this.els.eventFlare.addEventListener('click', () => this.engine.triggerSolarFlare());
-    if (this.els.eventRogue) this.els.eventRogue.addEventListener('click', () => this.engine.triggerRogueInfall());
+    this.els.eventMeteor.addEventListener('click', () => this.engine.triggerMeteorStorm());
+    this.els.eventPulse.addEventListener('click', () => this.engine.triggerGravityPulse());
+    this.els.eventFlare.addEventListener('click', () => this.engine.triggerSolarFlare());
+    this.els.eventRogue.addEventListener('click', () => this.engine.triggerRogueInfall());
 
     this.els.applyEdit.addEventListener('click', () => this.applyEditor());
     this.els.zeroVelocity.addEventListener('click', () => this.zeroSelectedVelocity());
@@ -344,10 +344,10 @@ class UniverseApp {
         const desiredDistance = Math.max(60, Math.min(1400, b.radius * 34));
         this.cam.frameTarget(new THREE.Vector3(b.x, b.y, b.z), desiredDistance);
       }
-      if (this.els.eventMeteor && e.code === 'KeyM') this.engine.triggerMeteorStorm();
-      if (this.els.eventPulse && e.code === 'KeyG') this.engine.triggerGravityPulse();
-      if (this.els.eventFlare && e.code === 'KeyF') this.engine.triggerSolarFlare();
-      if (this.els.eventRogue && e.code === 'KeyR') this.engine.triggerRogueInfall();
+      if (e.code === 'KeyM') this.engine.triggerMeteorStorm();
+      if (e.code === 'KeyG') this.engine.triggerGravityPulse();
+      if (e.code === 'KeyF') this.engine.triggerSolarFlare();
+      if (e.code === 'KeyR') this.engine.triggerRogueInfall();
     });
   }
 
