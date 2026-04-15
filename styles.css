@@ -72,15 +72,15 @@ body {
 .hud-left {
   left: 14px;
   top: 10px;
-  width: min(300px, calc(42vw - 24px));
-  padding: 11px 10px 9px;
+  width: min(282px, calc(40vw - 24px));
+  padding: 9px 8px 8px;
 }
 
 .hud-right {
   right: 15px;
   top: 14px;
-  width: min(264px, calc(40vw - 22px));
-  padding: 10px 9px 10px;
+  width: min(244px, calc(36vw - 20px));
+  padding: 8px 8px 9px;
 }
 
 .hud-left.collapsed {
@@ -113,8 +113,8 @@ body {
   border: 1px solid rgba(176, 194, 222, 0.18);
   border-radius: var(--radius);
   background: var(--panel-muted);
-  margin-bottom: 10px;
-  padding: 10px 10px 11px;
+  margin-bottom: 8px;
+  padding: 8px 8px 9px;
 }
 
 .panel-block:nth-of-type(2) {
@@ -141,8 +141,8 @@ body {
 .button-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 7px;
-  margin-bottom: 8px;
+  gap: 6px;
+  margin-bottom: 7px;
 }
 
 .button-row-tight {
@@ -167,9 +167,9 @@ button {
   background: #2a3952;
   color: var(--text-main);
   border-radius: var(--radius);
-  min-height: 34px;
-  padding: 7px 8px;
-  font: 500 0.8rem/1.2 'Public Sans', 'Segoe UI', sans-serif;
+  min-height: 31px;
+  padding: 6px 7px;
+  font: 500 0.75rem/1.2 'Public Sans', 'Segoe UI', sans-serif;
   cursor: pointer;
   transition: background-color 180ms ease, border-color 180ms ease, transform 140ms ease, box-shadow 180ms ease;
 }
@@ -327,12 +327,12 @@ input[type='range'] {
 
 .selection-panel h2 {
   margin: 0 0 8px;
-  font-family: 'Sora', 'Segoe UI', sans-serif;
+  right: 272px;
   font-size: 0.97rem;
-  color: #f0bc8c;
+  width: min(268px, calc(100vw - 20px));
 }
 
-.selection-panel p {
+  padding: 8px 8px 9px;
   margin: 6px 0;
   font-size: 0.83rem;
   color: #d7e1f0;
