@@ -1523,6 +1523,7 @@ const impulse = Math.max(0, (impulseBase * falloff) / massResistance);
     this.applyDecayAndInstability(step);
 
     this.integrate(step);
+    this.processBlackHoleAccretion();
     this.handleCollisions();
     this.maybeRandomSupernova(step);
     this.updateVisuals();
