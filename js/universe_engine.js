@@ -599,13 +599,13 @@ class UniverseEngine {
     });
   }
 
-  triggerMeteorStorm(count = 34) {
+  triggerMeteorStorm(count = 18) {
     const selected = this.selectedBody && this.selectedBody.alive ? this.selectedBody : null;
     const anchor = selected || this.bodies.find((b) => b.alive && b.type === BODY_TYPES.STAR) || { x: 0, y: 0, z: 0 };
 
     for (let i = 0; i < count; i++) {
       const angle = rand(0, Math.PI * 2);
-      const distance = rand(260, 620);
+      const distance = rand(240, 560);
       const height = rand(-120, 120);
       const x = anchor.x + Math.cos(angle) * distance;
       const y = anchor.y + height;
@@ -617,7 +617,7 @@ class UniverseEngine {
       const comet = Math.random() < 0.48;
       const radius = comet ? rand(1.2, 2.8) : rand(0.45, 1.45);
       const mass = radius * radius * radius * (comet ? rand(2.3, 5.5) : rand(0.9, 3.1));
-      const speed = comet ? rand(68, 120) : rand(48, 96);
+      const speed = comet ? rand(58, 94) : rand(40, 74);
 
       this.createBody({
         type: comet ? BODY_TYPES.COMET : BODY_TYPES.ASTEROID,
@@ -652,13 +652,12 @@ class UniverseEngine {
       life: 1.1,
     });
     this.spawnShockwave(anchor.x, anchor.y, anchor.z, {
-      color: 0xc8ecff,
-      opacity: 0.42,
-      inner: 1.3,
-      outer: 2.8,
-      speed: 82,
-      life: 0.9,
-      tilt: true,
+      color: 0xd5edff,
+      opacity: 0.36,
+      inner: 1.1,
+      outer: 2.5,
+      speed: 68,
+      life: 0.8,
     });
     this.updateStats();
   }
@@ -671,8 +670,8 @@ class UniverseEngine {
     const cx = source ? source.x : 0;
     const cy = source ? source.y : 0;
     const cz = source ? source.z : 0;
-    const pulseRadius = source ? Math.max(420, source.radius * 52) : 980;
-    const impulseBase = source ? Math.min(180, 56 + source.radius * 2.2) : 58;
+    const pulseRadius = source ? Math.max(320, source.radius * 34) : 720;
+    const impulseBase = source ? Math.min(120, 38 + source.radius * 1.25) : 38;
 
     for (const body of this.bodies) {
       if (!body.alive) continue;
@@ -695,9 +694,9 @@ const impulse = Math.max(0, (impulseBase * falloff) / massResistance);
       const tangent = new THREE.Vector3(-nz, 0, nx);
       if (tangent.lengthSq() > 0.00001) tangent.normalize();
 
-      body.vx += nx * impulse + tangent.x * impulse * 0.3;
+      body.vx += nx * impulse + tangent.x * impulse * 0.2;
       body.vy += ny * impulse;
-      body.vz += nz * impulse + tangent.z * impulse * 0.3;
+      body.vz += nz * impulse + tangent.z * impulse * 0.2;
     }
 
     this.createExplosionFX(cx, cy, cz, 0xb4d7ff, 1.25);
@@ -711,130 +710,21 @@ const impulse = Math.max(0, (impulseBase * falloff) / massResistance);
     });
     this.spawnShockwave(cx, cy, cz, {
       color: 0x9ac9ff,
-      opacity: 0.48,
-      inner: 1.2,
-      outer: 3.1,
-      speed: 120,
-      life: 1,
-    });
-    this.spawnShockwave(cx, cy, cz, {
-      color: 0xffffff,
-      opacity: 0.22,
-      inner: 1.6,
-      outer: 3.9,
-      speed: 146,
+      opacity: 0.34,
+      inner: 1.1,
+      outer: 2.6,
+      speed: 88,
       life: 0.85,
     });
     this.updateStats();
   }
 
   triggerSolarFlare() {
-    let star = this.selectedBody && this.selectedBody.alive && this.selectedBody.type === BODY_TYPES.STAR
-      ? this.selectedBody
-      : this.bodies.find((b) => b.alive && b.type === BODY_TYPES.STAR);
-
-    if (!star) {
-      star = this.createStar(0, 0, STAR_TYPES[0]);
-    }
-
-    const flareRadius = Math.max(280, star.radius * 18);
-    for (const body of this.bodies) {
-      if (!body.alive || body.id === star.id) continue;
-      if (body.type === BODY_TYPES.BLACKHOLE) continue;
-
-      const dx = body.x - star.x;
-      const dy = body.y - star.y;
-      const dz = body.z - star.z;
-      const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
-      if (dist < 0.001 || dist > flareRadius) continue;
-
-      const falloff = 1 - (dist / flareRadius);
-      const impulse = (72 * falloff) / (1 + Math.cbrt(Math.max(1, body.mass)) * 0.12);
-      const nx = dx / dist;
-      const ny = dy / dist;
-      const nz = dz / dist;
-
-      body.vx += nx * impulse;
-      body.vy += ny * impulse;
-      body.vz += nz * impulse;
-      body.temperature = Math.min(50000, (body.temperature || 0) + 2400 * falloff);
-
-      if (body.type === BODY_TYPES.ASTEROID || body.type === BODY_TYPES.COMET || body.type === BODY_TYPES.FRAGMENT) {
-        body.unstable = true;
-        if (Math.random() < 0.09 * falloff) {
-          this.createExplosionFX(body.x, body.y, body.z, 0xffbf83, 0.34);
-        }
-      }
-    }
-
-    this.createExplosionFX(star.x, star.y, star.z, 0xffc482, 1.6);
-    this.spawnShockwave(star.x, star.y, star.z, {
-      color: 0xffdd9a,
-      opacity: 0.58,
-      inner: 0.9,
-      outer: 2.4,
-      speed: 86,
-      life: 1.1,
-    });
-    this.spawnShockwave(star.x, star.y, star.z, {
-      color: 0xffa76b,
-      opacity: 0.36,
-      inner: 1.4,
-      outer: 3.4,
-      speed: 108,
-      life: 0.95,
-      tilt: true,
-    });
-    this.updateStats();
+    return;
   }
 
   triggerRogueInfall() {
-    const target = this.selectedBody && this.selectedBody.alive
-      ? this.selectedBody
-      : { x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0 };
-
-    const angle = rand(0, Math.PI * 2);
-    const distance = rand(780, 1280);
-    const x = target.x + Math.cos(angle) * distance;
-    const y = target.y + rand(-140, 140);
-    const z = target.z + Math.sin(angle) * distance;
-
-    const toTarget = new THREE.Vector3(target.x - x, target.y - y, target.z - z).normalize();
-    const tangent = new THREE.Vector3(-toTarget.z, 0, toTarget.x).normalize().multiplyScalar(rand(-0.22, 0.22));
-    const dir = toTarget.add(tangent).normalize();
-
-    const radius = Math.max(3.5, rand(3.5, 7.8) * this.sizeScale);
-    const mass = radius * radius * radius * rand(10, 18);
-    const speed = rand(46, 78);
-
-    this.createBody({
-      type: BODY_TYPES.PLANET,
-      subtype: 'Rogue',
-      name: `Rogue ${this.nextId}`,
-      mass,
-      radius,
-      color: randInt(0x728fb2, 0xc8ae8a),
-      atmosphere: Math.random() < 0.5 ? 'thin' : 'none',
-      temperature: rand(40, 400),
-      x,
-      y,
-      z,
-      vx: (target.vx || 0) + dir.x * speed,
-      vy: (target.vy || 0) + dir.y * speed,
-      vz: (target.vz || 0) + dir.z * speed,
-      unstable: true,
-    });
-
-    this.createExplosionFX(x, y, z, 0x8ec2ff, 0.78);
-    this.spawnShockwave(x, y, z, {
-      color: 0x93beff,
-      opacity: 0.52,
-      inner: 0.7,
-      outer: 2,
-      speed: 68,
-      life: 0.95,
-    });
-    this.updateStats();
+    return;
   }
 
   generateSystem() {
