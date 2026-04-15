@@ -1,4 +1,4 @@
-const runtimeErrorEl = document.getElementById('runtime-error');
+﻿const runtimeErrorEl = document.getElementById('runtime-error');
 
 function showRuntimeError(message) {
   if (!runtimeErrorEl) return;
