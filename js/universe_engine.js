@@ -114,6 +114,7 @@ class UniverseEngine {
       trail: [],
       trailLine: null,
       label: null,
+      labelTexture: null,
     };
 
     this.createVisual(body, config.glow || 0);
@@ -182,6 +183,122 @@ class UniverseEngine {
       line.visible = this.trailsEnabled;
       this.scene.add(line);
       body.trailLine = line;
+    }
+
+    this.updateBodyLabelVisual(body);
+  }
+
+  canDisplayLabel(body) {
+    if (!body) return false;
+    return body.type !== BODY_TYPES.ASTEROID && body.type !== BODY_TYPES.FRAGMENT;
+  }
+
+  buildLabelTexture(text) {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    const fontSize = 34;
+    ctx.font = `600 ${fontSize}px "Public Sans", "Segoe UI", sans-serif`;
+
+    const safeText = String(text || 'Body');
+    const textWidth = Math.ceil(ctx.measureText(safeText).width);
+    const padX = 28;
+    const padY = 18;
+
+    canvas.width = Math.max(128, textWidth + padX * 2);
+    canvas.height = fontSize + padY * 2;
+
+    ctx.font = `600 ${fontSize}px "Public Sans", "Segoe UI", sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    const midX = canvas.width / 2;
+    const midY = canvas.height / 2;
+
+    ctx.fillStyle = 'rgba(4, 8, 16, 0.82)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.98)';
+    ctx.lineWidth = 9;
+    ctx.strokeText(safeText, midX, midY);
+
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.95)';
+    ctx.lineWidth = 4;
+    ctx.strokeText(safeText, midX, midY);
+
+    ctx.fillStyle = 'rgba(255, 238, 120, 0.99)';
+    ctx.fillText(safeText, midX, midY);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.minFilter = THREE.LinearFilter;
+    texture.magFilter = THREE.LinearFilter;
+    texture.generateMipmaps = false;
+    texture.needsUpdate = true;
+
+    return {
+      texture,
+      aspect: canvas.width / Math.max(1, canvas.height),
+      text: safeText,
+    };
+  }
+
+  updateBodyLabelVisual(body) {
+    if (!body) return;
+
+    const shouldShow = this.labelsEnabled && this.canDisplayLabel(body) && body.alive;
+    if (!shouldShow) {
+      if (body.label) {
+        this.scene.remove(body.label);
+        if (body.label.material) {
+          body.label.material.dispose();
+        }
+      }
+      if (body.labelTexture) {
+        body.labelTexture.dispose();
+      }
+      body.label = null;
+      body.labelTexture = null;
+      return;
+    }
+
+    const textNow = String(body.name || 'Body');
+    const needsBuild = !body.label || !body.labelTexture || body.label.userData?.text !== textNow;
+
+    if (needsBuild) {
+      if (body.label) {
+        this.scene.remove(body.label);
+        if (body.label.material) body.label.material.dispose();
+      }
+      if (body.labelTexture) body.labelTexture.dispose();
+
+      const built = this.buildLabelTexture(textNow);
+      body.labelTexture = built.texture;
+      const material = new THREE.SpriteMaterial({
+        map: built.texture,
+        transparent: true,
+        depthWrite: false,
+        depthTest: false,
+      });
+
+      const sprite = new THREE.Sprite(material);
+      sprite.userData.text = built.text;
+      sprite.userData.aspect = built.aspect;
+      sprite.renderOrder = 20;
+      this.scene.add(sprite);
+      body.label = sprite;
+    }
+
+    if (body.label) {
+      const aspect = body.label.userData?.aspect || 2;
+      const h = Math.max(18, body.radius * 4.6 + 4);
+      body.label.scale.set(h * aspect, h, 1);
+      body.label.position.set(body.x, body.y + body.radius * 2 + h * 0.52, body.z);
+      body.label.visible = true;
+    }
+  }
+
+  refreshLabels() {
+    for (const b of this.bodies) {
+      this.updateBodyLabelVisual(b);
     }
   }
 
@@ -351,6 +468,15 @@ class UniverseEngine {
       this.scene.remove(body.trailLine);
       body.trailLine.geometry.dispose();
       body.trailLine.material.dispose();
+    }
+    if (body.label) {
+      this.scene.remove(body.label);
+      if (body.label.material) body.label.material.dispose();
+      body.label = null;
+    }
+    if (body.labelTexture) {
+      body.labelTexture.dispose();
+      body.labelTexture = null;
     }
 
     if (this.selectedBody === body) this.selectedBody = null;
@@ -1455,6 +1581,8 @@ const impulse = Math.max(0, (impulseBase * falloff) / massResistance);
           b.trailLine.geometry.setFromPoints(b.trail);
         }
       }
+
+      this.updateBodyLabelVisual(b);
     }
 
     if (this.nebula) this.nebula.visible = this.nebulaEnabled;
@@ -1496,7 +1624,10 @@ const impulse = Math.max(0, (impulseBase * falloff) / massResistance);
     const snap = this.snapshotBuffer[this.snapshotBuffer.length - 1];
     if (!snap) return;
 
+    const preservedSnapshots = this.snapshotBuffer.slice();
+
     this.clearAll();
+    this.snapshotBuffer = preservedSnapshots;
     this.buildBackground();
     this.simYears = snap.simYears;
 

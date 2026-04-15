@@ -200,6 +200,7 @@ class UniverseApp {
     });
     this.els.labels.addEventListener('change', () => {
       this.engine.labelsEnabled = this.els.labels.checked;
+      this.engine.refreshLabels();
     });
     this.els.nebula.addEventListener('change', () => {
       this.engine.nebulaEnabled = this.els.nebula.checked;
@@ -234,6 +235,9 @@ class UniverseApp {
     });
 
     this.els.closeSelection.addEventListener('click', () => this.clearSelectionPanel());
+
+    this.engine.labelsEnabled = !!this.els.labels?.checked;
+    this.engine.refreshLabels();
 
     this.setToolMode(this.toolMode);
   }
